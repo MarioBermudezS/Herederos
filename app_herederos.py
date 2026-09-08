@@ -4,17 +4,33 @@ import streamlit as st
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS personalizado para compactar la pantalla y alinear a la derecha
+# CSS ultra-denso para comprimir la tabla y forzar que quepa todo en una sola pantalla sin scroll
 st.markdown(
     """
     <style>
-    /* Expandir el contenedor principal y reducir márgenes para ganar espacio lateral */
+    /* Expandir la ventana al máximo y eliminar padding excesivo */
     .block-container {
-        padding-top: 1rem !important;
-        padding-bottom: 1rem !important;
-        padding-left: 2rem !important;
-        padding-right: 2rem !important;
+        padding-top: 0.5rem !important;
+        padding-bottom: 0.5rem !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
         max-width: 100% !important;
+    }
+    /* Reducir tamaño de títulos y barras laterales para maximizar área útil */
+    h1 {
+        font-size: 1.5rem !important;
+        margin-bottom: 0.2rem !important;
+    }
+    h3 {
+        font-size: 1.1rem !important;
+        margin-bottom: 0.2rem !important;
+    }
+    /* Forzar que el dataframe ocupe una altura compacta sin scroll interno innecesario */
+    div[data-testid="stDataFrame"] {
+        max-height: 75vh !important;
+    }
+    div[data-testid="stDataFrame"] > div {
+        max-height: 75vh !important;
     }
     </style>
 """,
@@ -292,7 +308,8 @@ def aplicar_estilos_styler(s):
 
     row_styles = [
         (
-            "text-align: left !important; padding-left: 8px;"
+            "text-align: left !important; padding-left: 6px; padding-top: 2px;"
+            " padding-bottom: 2px;"
             + ("font-weight: bold; background-color: #eef2f7;" if is_destacado else "")
         )
     ]
@@ -302,7 +319,10 @@ def aplicar_estilos_styler(s):
       is_negativo = isinstance(num_val, (int, float)) and num_val < 0
       is_columna_total = col == "Total"
 
-      cell_style = "text-align: right !important; padding-right: 12px;"
+      cell_style = (
+          "text-align: right !important; padding-right: 8px; padding-top: 2px;"
+          " padding-bottom: 2px;"
+      )
 
       # Color de fondo prioritario para la columna Total (verde clarito: #d1fae5)
       if is_columna_total:
@@ -328,8 +348,8 @@ def aplicar_estilos_styler(s):
 
 df_styled = df_resultado_display.style.apply(aplicar_estilos_styler, axis=None)
 
-# Mostramos usando st.dataframe pero configurado con ancho dinámico para que se ajuste perfectamente
-st.dataframe(df_styled, use_container_width=False, hide_index=True)
+# Mostramos usando st.dataframe con ajuste de altura completo para que quepan todas las filas de golpe
+st.dataframe(df_styled, use_container_width=True, hide_index=True, height=720)
 
 
 # Botón de descarga directa en Excel (valores numéricos puros)
