@@ -4,26 +4,6 @@ import streamlit as st
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS avanzado para asegurar que todas las celdas y cabeceras numéricas estén perfectamente alineadas a la derecha
-st.markdown(
-    """
-    <style>
-    /* Forzar alineación a la derecha en todas las columnas de datos excepto la primera (Resultados) */
-    div[data-testid="stDataFrame"] td:not(:first-child), 
-    div[data-testid="stDataFrame"] th:not(:first-child) {
-        text-align: right !important;
-        justify-content: flex-end !important;
-    }
-    div[data-testid="stDataFrame"] td:not(:first-child) div,
-    div[data-testid="stDataFrame"] th:not(:first-child) div {
-        text-align: right !important;
-        justify-content: flex-end !important;
-    }
-    </style>
-""",
-    unsafe_allow_html=True,
-)
-
 st.title("Control de Resultados - Herederos")
 
 
@@ -189,7 +169,7 @@ for mes in meses_sel:
   df_m = df[mask]
   datos_por_mes[mes] = calcular_resultados(df_m)
 
-# Construcción de la tabla final con columnas por mes + Total
+# Construcción de la tabla final
 conceptos = [
     "Ventas",
     "Coste Ventas",
@@ -218,16 +198,17 @@ columnas_tabla = ["Resultados"] + meses_sel
 if len(meses_sel) > 1:
   columnas_tabla.append("Total")
 
-filas_tabla_raw = []
+# Guardamos tanto los valores formateados (para mostrar) como los valores numéricos limpios (para evaluar si son negativos)
 filas_tabla_display = []
+filas_valores_numericos = []
 
 for concepto in conceptos:
-  fila_raw = [concepto]
   fila_disp = [concepto]
+  fila_num = [concepto]
 
   for mes in meses_sel:
     val = datos_por_mes[mes].get(concepto, 0.0)
-    fila_raw.append(val)
+    fila_num.append(val)
     if concepto == "R. B.":
       fila_disp.append(
           f"{val * 100:,.2f}%"
@@ -240,7 +221,6 @@ for concepto in conceptos:
           f"{val:,.2f} €".replace(",", "X").replace(".", ",").replace("X", ".")
       )
 
-  # Si hay más de un mes, calculamos la columna Total
   if len(meses_sel) > 1:
     if concepto == "R. B.":
       tot_ventas = sum(datos_por_mes[m].get("Ventas", 0.0) for m in meses_sel)
@@ -248,7 +228,7 @@ for concepto in conceptos:
           datos_por_mes[m].get("MARGEN BRUTO", 0.0) for m in meses_sel
       )
       val_total = (tot_margen / tot_ventas) if tot_ventas != 0 else 0.0
-      fila_raw.append(val_total)
+      fila_num.append(val_total)
       fila_disp.append(
           f"{val_total * 100:,.2f}%"
           .replace(",", "X")
@@ -257,7 +237,7 @@ for concepto in conceptos:
       )
     else:
       val_total = sum(datos_por_mes[m].get(concepto, 0.0) for m in meses_sel)
-      fila_raw.append(val_total)
+      fila_num.append(val_total)
       fila_disp.append(
           f"{val_total:,.2f} €"
           .replace(",", "X")
@@ -265,13 +245,17 @@ for concepto in conceptos:
           .replace("X", ".")
       )
 
-  filas_tabla_raw.append(fila_raw)
   filas_tabla_display.append(fila_disp)
+  filas_valores_numericos.append(fila_num)
 
-df_resultado_raw = pd.DataFrame(filas_tabla_raw, columns=columnas_tabla)
-df_resultado_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
+df_resultado_display = pd.DataFrame(
+    filas_tabla_display, columns=columnas_tabla
+)
+df_valores_numericos = pd.DataFrame(
+    filas_valores_numericos, columns=columnas_tabla
+)
 
-# Campos que deben ir destacados en negrita y con fondo sutil
+# Campos que deben ir destacados en negrita
 campos_destacados = [
     "MARGEN BRUTO",
     "R. B.",
@@ -282,31 +266,65 @@ campos_destacados = [
     "B.A.I.",
 ]
 
-# Estilizado visual con Pandas Styler
-styles = []
-for idx, row in df_resultado_display.iterrows():
-  if row["Resultados"] in campos_destacados:
-    styles.append(
-        dict(
-            selector=f"tr:nth-child({idx + 1})",
-            props=[
-                ("font-weight", "bold"),
-                ("background-color", "#eef2f7"),
-                ("color", "#1f2937"),
-            ],
-        )
-    )
 
-df_styled = df_resultado_display.style.set_table_styles(styles).set_properties(
-    subset=["Resultados"], **{"text-align": "left", "padding-left": "10px"}
+# Función para aplicar estilos celda por celda: Negritas, alineación derecha y números negativos en rojo
+def aplicar_estilos(val, row_idx, col_name):
+  concepto = df_resultado_display.iloc[row_idx]["Resultados"]
+  num_val = df_valores_numericos.iloc[row_idx][col_name]
+
+  # Estilos base
+  is_destacado = concepto in campos_destacados
+  is_negativo = isinstance(num_val, (int, float)) and num_val < 0
+
+  # Construcción de reglas CSS para la celda
+  css = "text-align: right !important; padding-right: 15px;"
+  if is_destacado:
+    css += " font-weight: bold; background-color: #eef2f7;"
+  if is_negativo:
+    css += " color: #dc2626; font-weight: bold;"  # Rojo fuerte para negativos
+  elif is_destacado:
+    css += " color: #1f2937;"
+
+  return css
+
+
+# Aplicamos los estilos usando el DataFrame de visualización
+df_styled = df_resultado_display.style
+
+# Alineación y negrita para la primera columna (Resultados)
+df_styled = df_styled.set_properties(
+    subset=["Resultados"],
+    **{
+        "text-align": "left",
+        "padding-left": "10px",
+        "font-weight": "normal",
+    },
 )
 
+# Para las columnas numéricas, aplicamos la función de estilo fila por fila y celda por celda
 for col in columnas_tabla[1:]:
-  df_styled = df_styled.set_properties(
-      subset=[col], **{"text-align": "right", "padding-right": "15px"}
+  df_styled = df_styled.apply(
+      lambda s, c=col: [
+          (
+              "text-align: right !important; font-weight: bold; background-color: #eef2f7; color: #dc2626;"
+              if df_valores_numericos.loc[i, c] < 0
+              and df_resultado_display.loc[i, "Resultados"] in campos_destacados
+              else (
+                  "text-align: right !important; font-weight: bold; background-color: #eef2f7; color: #1f2937;"
+                  if df_resultado_display.loc[i, "Resultados"] in campos_destacados
+                  else (
+                      "text-align: right !important; color: #dc2626;"
+                      if df_valores_numericos.loc[i, c] < 0
+                      else "text-align: right !important;"
+                  )
+              )
+          )
+          for i in s.index
+      ],
+      subset=[col],
   )
 
-# Mostrar tabla en pantalla
+# Mostrar tabla estilizada en pantalla
 st.dataframe(df_styled, use_container_width=True, hide_index=True)
 
 
@@ -318,7 +336,7 @@ def to_excel(df_to_save):
   return output.getvalue()
 
 
-excel_data = to_excel(df_resultado_raw)
+excel_data = to_excel(df_valores_numericos)
 nombre_salida = f"Informe_{'_'.join(tiendas)}_{ano}.xlsx"
 
 st.download_button(
