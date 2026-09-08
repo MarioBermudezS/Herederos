@@ -308,7 +308,7 @@ def aplicar_estilos_styler(s):
         (
             "text-align: left; padding-left: 8px;"
             + ("font-weight: bold; background-color: #eef2f7;" if is_destacado else "")
-        ]
+        )
     ]
 
     for col_idx, col in enumerate(columnas_tabla[1:], start=1):
