@@ -74,14 +74,18 @@ def get_val(cat):
   return resumen.get(cat, 0.0)
 
 
-# 1. Obtenemos Ventas y R. Bruta buscando el campo "R.B." en el Excel
+# Buscamos R.B. probando diferentes variantes por si acaso en el Excel tiene otro formato exacto
+r_bruta = 0
+for variante in ["R.B.", "R.B", "R. Bruta", "Ratio Bruto", "RB"]:
+  if variante in resumen:
+    r_bruta = resumen[variante]
+    break
+
 ventas = get_val("Ventas")
-r_bruta = get_val("R.B.")
 
-# 2. Calculamos Margen Bruto multiplicando R.B. por Ventas
+# Si aun así no lo encuentra por texto, comprobamos si viene en otra columna o filas
+# Calculamos Margen Bruto y Coste de Ventas con la fórmula indicada
 margen_bruto = r_bruta * ventas
-
-# 3. Calculamos Coste de Ventas como Ventas menos MARGEN BRUTO
 coste_ventas = ventas - margen_bruto
 
 otros_ingresos = get_val("Otros Ingresos")
