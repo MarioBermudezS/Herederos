@@ -313,10 +313,8 @@ def aplicar_estilos_styler(s):
     is_destacado = concepto in campos_destacados
 
     row_styles = [
-        (
-            "text-align: left !important; padding-left: 6px;"
-            + ("font-weight: bold; background-color: #eef2f7;" if is_destacado else "")
-        ]
+        "text-align: left !important; padding-left: 6px;"
+        + ("font-weight: bold; background-color: #eef2f7;" if is_destacado else "")
     ]
 
     for col_idx, col in enumerate(columnas_tabla[1:], start=1):
