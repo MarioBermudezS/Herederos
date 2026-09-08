@@ -4,14 +4,20 @@ import streamlit as st
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS personalizado para forzar que todas las celdas numéricas y de valores estén alineadas a la derecha
+# CSS avanzado para asegurar que todas las celdas y cabeceras numéricas estén perfectamente alineadas a la derecha
 st.markdown(
     """
     <style>
-    /* Alinea a la derecha las celdas de las tablas de datos de Streamlit */
-    div[data-testid="stDataFrame"] td:nth-child(n+2), 
-    div[data-testid="stDataFrame"] th:nth-child(n+2) {
+    /* Forzar alineación a la derecha en todas las columnas de datos excepto la primera (Resultados) */
+    div[data-testid="stDataFrame"] td:not(:first-child), 
+    div[data-testid="stDataFrame"] th:not(:first-child) {
         text-align: right !important;
+        justify-content: flex-end !important;
+    }
+    div[data-testid="stDataFrame"] td:not(:first-child) div,
+    div[data-testid="stDataFrame"] th:not(:first-child) div {
+        text-align: right !important;
+        justify-content: flex-end !important;
     }
     </style>
 """,
@@ -47,7 +53,7 @@ if not anos_disponibles:
 
 ano = st.sidebar.selectbox("Año", anos_disponibles)
 
-# Selección múltiple de meses ordenados cronológicamente si es posible
+# Selección múltiple de meses ordenados cronológicamente
 meses_orden = [
     "Enero",
     "Febrero",
@@ -151,7 +157,7 @@ def calcular_resultados(df_filtered):
       "Ventas": ventas,
       "Coste Ventas": coste_ventas,
       "MARGEN BRUTO": margen_bruto,
-      "R. B.": r_bruta,  # Se recalculará o asignará luego para el total
+      "R. B.": r_bruta,
       "Otros Ingresos": otros_ingresos,
       "Ingresos Operativos": ingresos_operativos,
       "Gastos Personal": gastos_personal,
@@ -212,24 +218,15 @@ columnas_tabla = ["Resultados"] + meses_sel
 if len(meses_sel) > 1:
   columnas_tabla.append("Total")
 
-filas_tabla_raw = []  # Valores numéricos para el Excel
-filas_tabla_display = []  # Valores formateados para la pantalla
+filas_tabla_raw = []
+filas_tabla_display = []
 
 for concepto in conceptos:
   fila_raw = [concepto]
   fila_disp = [concepto]
 
-  suma_acumulada = 0.0
-  total_ventas_calc = 0.0
-  total_margen_calc = 0.0
-
   for mes in meses_sel:
     val = datos_por_mes[mes].get(concepto, 0.0)
-    if concepto == "Ventas":
-      total_ventas_calc += val
-    if concepto == "MARGEN BRUTO":
-      total_margen_calc += val
-
     fila_raw.append(val)
     if concepto == "R. B.":
       fila_disp.append(
@@ -243,10 +240,9 @@ for concepto in conceptos:
           f"{val:,.2f} €".replace(",", "X").replace(".", ",").replace("X", ".")
       )
 
-  # Si hay más de un mes, calculamos y añadimos la columna Total
+  # Si hay más de un mes, calculamos la columna Total
   if len(meses_sel) > 1:
     if concepto == "R. B.":
-      # Regla especial solicitada: Total Margen Bruto / Total Ventas
       tot_ventas = sum(datos_por_mes[m].get("Ventas", 0.0) for m in meses_sel)
       tot_margen = sum(
           datos_por_mes[m].get("MARGEN BRUTO", 0.0) for m in meses_sel
@@ -259,29 +255,7 @@ for concepto in conceptos:
           .replace(".", ",")
           .replace("X", ".")
       )
-    elif concepto in [
-        "Ventas",
-        "Coste Ventas",
-        "MARGEN BRUTO",
-        "Otros Ingresos",
-        "Ingresos Operativos",
-        "Gastos Personal",
-        "Alquileres",
-        "Reparaciones",
-        "Seguros",
-        "Suministros",
-        "Otros Servicios",
-        "TOTAL GASTOS OPERATIVOS",
-        "Amortizaciones",
-        "GASTOS ESTRUCTURA",
-        "B.A.I.I.",
-        "Gastos Financieros",
-        "Ingresos Financieros",
-        "RDO. FINANCIERO",
-        "Resultados Extraordinarios",
-        "B.A.I.",
-    ]:
-      # Suma acumulada de los meses para el resto de conceptos
+    else:
       val_total = sum(datos_por_mes[m].get(concepto, 0.0) for m in meses_sel)
       fila_raw.append(val_total)
       fila_disp.append(
@@ -297,7 +271,7 @@ for concepto in conceptos:
 df_resultado_raw = pd.DataFrame(filas_tabla_raw, columns=columnas_tabla)
 df_resultado_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
 
-# Estilizado visual para remarcar filas clave y asegurar alineación
+# Campos que deben ir destacados en negrita y con fondo sutil
 campos_destacados = [
     "MARGEN BRUTO",
     "R. B.",
@@ -308,7 +282,7 @@ campos_destacados = [
     "B.A.I.",
 ]
 
-# Configuración de estilos con Pandas Styler
+# Estilizado visual con Pandas Styler
 styles = []
 for idx, row in df_resultado_display.iterrows():
   if row["Resultados"] in campos_destacados:
