@@ -4,7 +4,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS avanzado para compactar al máximo la pantalla y forzar la visualización total
+# CSS avanzado para compactar, autoajustar anchos de columna y pintar la columna Total de verde clarito
 st.markdown(
     """
     <style>
@@ -16,14 +16,15 @@ st.markdown(
         padding-right: 2rem !important;
         max-width: 100% !important;
     }
-    /* Estilo de tabla hipercompacta estilo Excel financiero */
+    /* Estilo de tabla hipercompacta con autoajuste de ancho de columnas */
     table {
         width: 100% !important;
         font-size: 13px !important;
         border-collapse: collapse !important;
+        table-layout: auto !important;
     }
     th, td {
-        padding: 4px 6px !important;
+        padding: 4px 8px !important;
         white-space: nowrap !important;
     }
     /* Forzar alineación estricta a la derecha en todas las columnas de importes */
@@ -169,7 +170,7 @@ def calcular_resultados(df_filtered):
       "Coste Ventas": coste_ventas,
       "MARGEN BRUTO": margen_bruto,
       "R. B.": r_bruta,
-      "Otros Ingresos": otros_ingresos,
+      "Otros ingresos": otros_ingresos,
       "Ingresos Operativos": ingresos_operativos,
       "Gastos Personal": gastos_personal,
       "Alquileres": alquileres,
@@ -297,7 +298,7 @@ campos_destacados = [
 ]
 
 
-# Función para aplicar estilos detallados manteniendo alineación, negritas y negativos en rojo
+# Función para aplicar estilos detallados: negritas, negativos en rojo y columna Total en verde clarito
 def aplicar_estilos_styler(s):
   styles = []
   for i, row in df_resultado_display.iterrows():
@@ -314,10 +315,21 @@ def aplicar_estilos_styler(s):
     for col_idx, col in enumerate(columnas_tabla[1:], start=1):
       num_val = df_valores_numericos.loc[i, col]
       is_negativo = isinstance(num_val, (int, float)) and num_val < 0
+      is_columna_total = col == "Total"
 
       cell_style = "text-align: right !important; padding-right: 10px;"
+
+      # Color de fondo prioritario para la columna Total (verde clarito: #d1fae5)
+      if is_columna_total:
+        cell_style += " background-color: #d1fae5;"
+      elif is_destacado:
+        cell_style += " background-color: #eef2f7;"
+
+      # Negritas para filas clave
       if is_destacado:
-        cell_style += " font-weight: bold; background-color: #eef2f7;"
+        cell_style += " font-weight: bold;"
+
+      # Color de texto (Rojo si es negativo, gris oscuro si es destacado, normal por defecto)
       if is_negativo:
         cell_style += " color: #dc2626; font-weight: bold;"
       elif is_destacado:
