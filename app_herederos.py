@@ -74,10 +74,15 @@ def get_val(cat):
   return resumen.get(cat, 0.0)
 
 
+# 1. Obtenemos Ventas y R. Bruta directamente del Excel
 ventas = get_val("Ventas")
-r_bruta = get_val("R. Bruta")  # Cogido directamente del Excel
-margen_bruto = ventas * r_bruta  # Ventas * R.Bruta
-coste_ventas = ventas - margen_bruto  # Ventas - Margen Bruto
+r_bruta = get_val("R. Bruta")
+
+# 2. Calculamos Margen Bruto multiplicando R. Bruta por Ventas
+margen_bruto = r_bruta * ventas
+
+# 3. Calculamos Coste de Ventas como Ventas menos MARGEN BRUTO
+coste_ventas = ventas - margen_bruto
 
 otros_ingresos = get_val("Otros Ingresos")
 ingresos_operativos = margen_bruto + otros_ingresos
