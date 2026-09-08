@@ -4,7 +4,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS avanzado para compactar, autoajustar anchos de columna y pintar la columna Total de verde clarito
+# CSS personalizado para compactar la pantalla y alinear a la derecha
 st.markdown(
     """
     <style>
@@ -15,21 +15,6 @@ st.markdown(
         padding-left: 2rem !important;
         padding-right: 2rem !important;
         max-width: 100% !important;
-    }
-    /* Estilo de tabla hipercompacta con autoajuste de ancho de columnas */
-    table {
-        width: 100% !important;
-        font-size: 13px !important;
-        border-collapse: collapse !important;
-        table-layout: auto !important;
-    }
-    th, td {
-        padding: 4px 8px !important;
-        white-space: nowrap !important;
-    }
-    /* Forzar alineación estricta a la derecha en todas las columnas de importes */
-    th:not(:first-child), td:not(:first-child) {
-        text-align: right !important;
     }
     </style>
 """,
@@ -170,7 +155,7 @@ def calcular_resultados(df_filtered):
       "Coste Ventas": coste_ventas,
       "MARGEN BRUTO": margen_bruto,
       "R. B.": r_bruta,
-      "Otros ingresos": otros_ingresos,
+      "Otros Ingresos": otros_ingresos,
       "Ingresos Operativos": ingresos_operativos,
       "Gastos Personal": gastos_personal,
       "Alquileres": alquileres,
@@ -298,7 +283,7 @@ campos_destacados = [
 ]
 
 
-# Función para aplicar estilos detallados: negritas, negativos en rojo y columna Total en verde clarito
+# Función para aplicar estilos detallados mediante Pandas Styler
 def aplicar_estilos_styler(s):
   styles = []
   for i, row in df_resultado_display.iterrows():
@@ -307,7 +292,7 @@ def aplicar_estilos_styler(s):
 
     row_styles = [
         (
-            "text-align: left; padding-left: 8px;"
+            "text-align: left !important; padding-left: 8px;"
             + ("font-weight: bold; background-color: #eef2f7;" if is_destacado else "")
         )
     ]
@@ -317,7 +302,7 @@ def aplicar_estilos_styler(s):
       is_negativo = isinstance(num_val, (int, float)) and num_val < 0
       is_columna_total = col == "Total"
 
-      cell_style = "text-align: right !important; padding-right: 10px;"
+      cell_style = "text-align: right !important; padding-right: 12px;"
 
       # Color de fondo prioritario para la columna Total (verde clarito: #d1fae5)
       if is_columna_total:
@@ -329,7 +314,7 @@ def aplicar_estilos_styler(s):
       if is_destacado:
         cell_style += " font-weight: bold;"
 
-      # Color de texto (Rojo si es negativo, gris oscuro si es destacado, normal por defecto)
+      # Color de texto (Rojo si es negativo, gris oscuro si es destacado)
       if is_negativo:
         cell_style += " color: #dc2626; font-weight: bold;"
       elif is_destacado:
@@ -343,8 +328,8 @@ def aplicar_estilos_styler(s):
 
 df_styled = df_resultado_display.style.apply(aplicar_estilos_styler, axis=None)
 
-# Mostrar la tabla compacta adaptada a pantalla completa
-st.table(df_styled)
+# Mostramos usando st.dataframe pero configurado con ancho dinámico para que se ajuste perfectamente
+st.dataframe(df_styled, use_container_width=False, hide_index=True)
 
 
 # Botón de descarga directa en Excel (valores numéricos puros)
