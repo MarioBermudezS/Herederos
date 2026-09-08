@@ -4,33 +4,39 @@ import streamlit as st
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS ultra-denso para comprimir la tabla y forzar que quepa todo en una sola pantalla sin scroll
+# CSS ultra-compacto y forzoso para alinear a la derecha y evitar scroll
 st.markdown(
     """
     <style>
-    /* Expandir la ventana al máximo y eliminar padding excesivo */
+    /* Expandir la ventana al máximo y eliminar padding */
     .block-container {
-        padding-top: 0.5rem !important;
-        padding-bottom: 0.5rem !important;
+        padding-top: 0.3rem !important;
+        padding-bottom: 0.3rem !important;
         padding-left: 1rem !important;
         padding-right: 1rem !important;
         max-width: 100% !important;
     }
-    /* Reducir tamaño de títulos y barras laterales para maximizar área útil */
     h1 {
-        font-size: 1.5rem !important;
-        margin-bottom: 0.2rem !important;
+        font-size: 1.3rem !important;
+        margin-bottom: 0.1rem !important;
     }
     h3 {
-        font-size: 1.1rem !important;
-        margin-bottom: 0.2rem !important;
+        font-size: 1.0rem !important;
+        margin-bottom: 0.1rem !important;
     }
-    /* Forzar que el dataframe ocupe una altura compacta sin scroll interno innecesario */
-    div[data-testid="stDataFrame"] {
-        max-height: 75vh !important;
+    /* Estilo de tabla hipercompacta estilo Excel para que quepa todo de un vistazo */
+    table {
+        width: 100% !important;
+        font-size: 11.5px !important;
+        border-collapse: collapse !important;
     }
-    div[data-testid="stDataFrame"] > div {
-        max-height: 75vh !important;
+    th, td {
+        padding: 2px 5px !important;
+        white-space: nowrap !important;
+    }
+    /* FORZAR ALINEACIÓN ABSOLUTA A LA DERECHA EN TODAS LAS COLUMNAS NUMÉRICAS Y CABECERAS */
+    th:not(:first-child), td:not(:first-child) {
+        text-align: right !important;
     }
     </style>
 """,
@@ -299,7 +305,7 @@ campos_destacados = [
 ]
 
 
-# Función para aplicar estilos detallados mediante Pandas Styler
+# Función de estilos Styler combinada con st.table para garantizar alineaciones y colores
 def aplicar_estilos_styler(s):
   styles = []
   for i, row in df_resultado_display.iterrows():
@@ -308,10 +314,9 @@ def aplicar_estilos_styler(s):
 
     row_styles = [
         (
-            "text-align: left !important; padding-left: 6px; padding-top: 2px;"
-            " padding-bottom: 2px;"
+            "text-align: left !important; padding-left: 6px;"
             + ("font-weight: bold; background-color: #eef2f7;" if is_destacado else "")
-        )
+        ]
     ]
 
     for col_idx, col in enumerate(columnas_tabla[1:], start=1):
@@ -319,22 +324,16 @@ def aplicar_estilos_styler(s):
       is_negativo = isinstance(num_val, (int, float)) and num_val < 0
       is_columna_total = col == "Total"
 
-      cell_style = (
-          "text-align: right !important; padding-right: 8px; padding-top: 2px;"
-          " padding-bottom: 2px;"
-      )
+      cell_style = "text-align: right !important; padding-right: 8px;"
 
-      # Color de fondo prioritario para la columna Total (verde clarito: #d1fae5)
       if is_columna_total:
         cell_style += " background-color: #d1fae5;"
       elif is_destacado:
         cell_style += " background-color: #eef2f7;"
 
-      # Negritas para filas clave
       if is_destacado:
         cell_style += " font-weight: bold;"
 
-      # Color de texto (Rojo si es negativo, gris oscuro si es destacado)
       if is_negativo:
         cell_style += " color: #dc2626; font-weight: bold;"
       elif is_destacado:
@@ -348,8 +347,8 @@ def aplicar_estilos_styler(s):
 
 df_styled = df_resultado_display.style.apply(aplicar_estilos_styler, axis=None)
 
-# Mostramos usando st.dataframe con ajuste de altura completo para que quepan todas las filas de golpe
-st.dataframe(df_styled, use_container_width=True, hide_index=True, height=720)
+# Usamos st.table para que pinte todas las filas de golpe de forma estática y compacta sin barras de scroll
+st.table(df_styled)
 
 
 # Botón de descarga directa en Excel (valores numéricos puros)
