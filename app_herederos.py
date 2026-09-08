@@ -75,9 +75,9 @@ def get_val(cat):
 
 
 ventas = get_val("Ventas")
-coste_ventas = get_val("Consumo Ventas")
-margen_bruto = ventas - coste_ventas
-r_bruta = (margen_bruto / ventas) if ventas != 0 else 0.0
+r_bruta = get_val("R. Bruta")  # Cogido directamente del Excel
+margen_bruto = ventas * r_bruta  # Ventas * R.Bruta
+coste_ventas = ventas - margen_bruto  # Ventas - Margen Bruto
 
 otros_ingresos = get_val("Otros Ingresos")
 ingresos_operativos = margen_bruto + otros_ingresos
