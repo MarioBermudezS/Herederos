@@ -120,7 +120,7 @@ rdo_financiero = ingresos_financieros - gastos_financieros
 resultados_extraordinarios = get_val("Resultados Extraordinarios")
 bai = baii + rdo_financiero + resultados_extraordinarios
 
-# 1. Creamos el DataFrame con los valores numéricos limpios para operar o descargar
+# Creamos el DataFrame base con los valores numéricos
 data_out = [
     ("Ventas", ventas),
     ("Coste Ventas", coste_ventas),
@@ -147,26 +147,104 @@ data_out = [
 
 df_resultado = pd.DataFrame(data_out, columns=["Resultados", f"{mes} {ano}"])
 
-# 2. Creamos una copia formateada específicamente para mostrar en pantalla de forma visualmente limpia
+
+# Función de formato con estilos destacados y alineación a la derecha
+def estilizar_informe(row):
+  concepto = row["Resultados"]
+  valor = row[f"{mes} {ano}"]
+
+  # Formateo de número (euros o porcentaje)
+  if concepto == "R. B.":
+    val_str = (
+        f"{valor * 100:,.2f}%"
+        .replace(",", "X")
+        .replace(".", ",")
+        .replace("X", ".")
+    )
+  else:
+    val_str = (
+        f"{valor:,.2f} €".replace(",", "X").replace(".", ",").replace("X", ".")
+    )
+
+  # Campos destacados (Negrita, fondo sutil y alineación derecha)
+  campos_destacados = [
+      "MARGEN BRUTO",
+      "R. B.",
+      "Ingresos Operativos",
+      "GASTOS ESTRUCTURA",
+      "B.A.I.I.",
+      "RDO. FINANCIERO",
+      "B.A.I.",
+  ]
+
+  if concepto in campos_destacados:
+    return [
+        (
+            "font-weight: bold; background-color: #f0f2f6; text-align: left;"
+            " padding: 6px;"
+        ),
+        (
+            "font-weight: bold; background-color: #f0f2f6; text-align: right;"
+            f" padding: 6px; content: '{val_str}';"
+        ),
+    ]
+  else:
+    return [
+        "text-align: left; padding: 4px;",
+        f"text-align: right; padding: 4px;",
+    ]
+
+
+# Aplicamos el formato visual al DataFrame de pantalla
 df_display = df_resultado.copy()
 
 
-def formatear_celda(row):
+def formatear_valor(row):
   concepto = row["Resultados"]
   valor = row[f"{mes} {ano}"]
   if concepto == "R. B.":
-    return f"{valor * 100:,.2f}%".replace(",", "X").replace(".", ",").replace("X", ".")
+    return (
+        f"{valor * 100:,.2f}%".replace(",", "X").replace(".", ",").replace("X", ".")
+    )
   else:
-    return f"{valor:,.2f} €".replace(",", "X").replace(".", ",").replace("X", ".")
+    return (
+        f"{valor:,.2f} €".replace(",", "X").replace(".", ",").replace("X", ".")
+    )
 
 
-df_display[f"{mes} {ano}"] = df_display.apply(formatear_celda, axis=1)
+df_display[f"{mes} {ano}"] = df_display.apply(formatear_valor, axis=1)
 
-# Mostrar tabla formateada en pantalla
-st.dataframe(df_display, use_container_width=True, hide_index=True)
+# Estilizado con pandas Styler para alinear y destacar filas
+df_styled = df_display.style.set_properties(
+    subset=["Resultados"], **{"text-align": "left"}
+).set_properties(
+    subset=[f"{mes} {ano}"], **{"text-align": "right"}
+).apply(
+    lambda row: [
+        (
+            "font-weight: bold; background-color: #eef2f7; color: #1f2937;"
+            if row["Resultados"]
+            in [
+                "MARGEN BRUTO",
+                "R. B.",
+                "Ingresos Operativos",
+                "GASTOS ESTRUCTURA",
+                "B.A.I.I.",
+                "RDO. FINANCIERO",
+                "B.A.I.",
+            ]
+            else ""
+        )
+    ]
+    * len(row),
+    axis=1,
+)
+
+# Mostrar tabla estilizada en pantalla
+st.dataframe(df_styled, use_container_width=True, hide_index=True)
 
 
-# Botón de descarga directa en Excel (con los valores numéricos puros para que se pueda operar con ellos)
+# Botón de descarga directa en Excel (mantiene los números puros)
 def to_excel(df_to_save):
   output = io.BytesIO()
   with pd.ExcelWriter(output, engine="openpyxl") as writer:
