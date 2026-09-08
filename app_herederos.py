@@ -4,24 +4,29 @@ import streamlit as st
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS personalizado para compactar la tabla y forzar alineación absoluta a la derecha
+# CSS avanzado para compactar al máximo la pantalla y forzar la visualización total
 st.markdown(
     """
     <style>
-    /* Reducir espacios generales para que quepa todo más compacto en pantalla */
+    /* Expandir el contenedor principal y reducir márgenes para ganar espacio lateral */
     .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
+        padding-top: 1rem !important;
+        padding-bottom: 1rem !important;
+        padding-left: 2rem !important;
+        padding-right: 2rem !important;
+        max-width: 100% !important;
     }
-    /* Estilo de tabla compacta tipo Excel */
+    /* Estilo de tabla hipercompacta estilo Excel financiero */
     table {
         width: 100% !important;
-        font-size: 14px !important;
+        font-size: 13px !important;
+        border-collapse: collapse !important;
     }
     th, td {
-        padding: 6px 10px !important;
+        padding: 4px 6px !important;
+        white-space: nowrap !important;
     }
-    /* Forzar alineación a la derecha en todas las columnas numéricas */
+    /* Forzar alineación estricta a la derecha en todas las columnas de importes */
     th:not(:first-child), td:not(:first-child) {
         text-align: right !important;
     }
@@ -291,30 +296,26 @@ campos_destacados = [
     "B.A.I.",
 ]
 
-df_styled = df_resultado_display.style
 
-
-# Aplicamos estilos fila por fila: negritas, fondos y números negativos en rojo
+# Función para aplicar estilos detallados manteniendo alineación, negritas y negativos en rojo
 def aplicar_estilos_styler(s):
   styles = []
   for i, row in df_resultado_display.iterrows():
     concepto = row["Resultados"]
     is_destacado = concepto in campos_destacados
 
-    # Estilo para la celda de la izquierda (Concepto)
     row_styles = [
         (
-            "text-align: left; padding-left: 10px;"
+            "text-align: left; padding-left: 8px;"
             + ("font-weight: bold; background-color: #eef2f7;" if is_destacado else "")
-        )
+        ]
     ]
 
-    # Estilos para el resto de celdas (columnas numéricas)
     for col_idx, col in enumerate(columnas_tabla[1:], start=1):
       num_val = df_valores_numericos.loc[i, col]
       is_negativo = isinstance(num_val, (int, float)) and num_val < 0
 
-      cell_style = "text-align: right !important; padding-right: 15px;"
+      cell_style = "text-align: right !important; padding-right: 10px;"
       if is_destacado:
         cell_style += " font-weight: bold; background-color: #eef2f7;"
       if is_negativo:
@@ -328,10 +329,9 @@ def aplicar_estilos_styler(s):
   return pd.DataFrame(styles, index=s.index, columns=s.columns)
 
 
-# Aplicamos el formateador visual estructurado
 df_styled = df_resultado_display.style.apply(aplicar_estilos_styler, axis=None)
 
-# Mostramos la tabla de forma compacta y totalmente adaptada a la pantalla con st.table
+# Mostrar la tabla compacta adaptada a pantalla completa
 st.table(df_styled)
 
 
