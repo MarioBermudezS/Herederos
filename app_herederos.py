@@ -78,18 +78,14 @@ def get_val(cat):
 ventas = get_val("Ventas")
 r_bruta = get_val("R. B.")
 
-# Si por cualquier motivo viniera sin espacios o con otra variante, cubrimos las espaldas:
 if r_bruta == 0.0:
   for k, v in resumen.items():
     if k and str(k).strip().upper() in ["R. B.", "R.B.", "R.B"]:
       r_bruta = v
       break
 
-# Fórmulas indicadas:
-# 1. MARGEN BRUTO = R. B. * Ventas
+# Fórmulas de Margen Bruto y Coste de Ventas
 margen_bruto = r_bruta * ventas
-
-# 2. Coste Ventas = Ventas - MARGEN BRUTO
 coste_ventas = ventas - margen_bruto
 
 otros_ingresos = get_val("Otros Ingresos")
@@ -107,6 +103,9 @@ total_gastos_operativos = (
 )
 amortizaciones = get_val("Amortizaciones")
 
+# Cálculo de Gastos de Estructura
+gastos_estructura = total_gastos_operativos + gastos_personal + amortizaciones
+
 baii = (
     ingresos_operativos
     - gastos_personal
@@ -121,11 +120,12 @@ rdo_financiero = ingresos_financieros - gastos_financieros
 resultados_extraordinarios = get_val("Resultados Extraordinarios")
 bai = baii + rdo_financiero + resultados_extraordinarios
 
+# 1. Creamos el DataFrame con los valores numéricos limpios para operar o descargar
 data_out = [
     ("Ventas", ventas),
     ("Coste Ventas", coste_ventas),
     ("MARGEN BRUTO", margen_bruto),
-    ("R. Bruta", r_bruta),
+    ("R. B.", r_bruta),
     ("Otros Ingresos", otros_ingresos),
     ("Ingresos Operativos", ingresos_operativos),
     ("Gastos Personal", gastos_personal),
@@ -136,6 +136,7 @@ data_out = [
     ("Otros Servicios", otros_servicios),
     ("TOTAL GASTOS OPERATIVOS", total_gastos_operativos),
     ("Amortizaciones", amortizaciones),
+    ("GASTOS ESTRUCTURA", gastos_estructura),
     ("B.A.I.I.", baii),
     ("Gastos Financieros", gastos_financieros),
     ("Ingresos Financieros", ingresos_financieros),
@@ -146,11 +147,26 @@ data_out = [
 
 df_resultado = pd.DataFrame(data_out, columns=["Resultados", f"{mes} {ano}"])
 
-# Mostrar tabla en pantalla
-st.dataframe(df_resultado, use_container_width=True, hide_index=True)
+# 2. Creamos una copia formateada específicamente para mostrar en pantalla de forma visualmente limpia
+df_display = df_resultado.copy()
 
 
-# Botón de descarga directa en Excel
+def formatear_celda(row):
+  concepto = row["Resultados"]
+  valor = row[f"{mes} {ano}"]
+  if concepto == "R. B.":
+    return f"{valor * 100:,.2f}%".replace(",", "X").replace(".", ",").replace("X", ".")
+  else:
+    return f"{valor:,.2f} €".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+df_display[f"{mes} {ano}"] = df_display.apply(formatear_celda, axis=1)
+
+# Mostrar tabla formateada en pantalla
+st.dataframe(df_display, use_container_width=True, hide_index=True)
+
+
+# Botón de descarga directa en Excel (con los valores numéricos puros para que se pueda operar con ellos)
 def to_excel(df_to_save):
   output = io.BytesIO()
   with pd.ExcelWriter(output, engine="openpyxl") as writer:
