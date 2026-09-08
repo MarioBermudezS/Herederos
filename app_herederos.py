@@ -23,15 +23,23 @@ except Exception as e:
 # Menú lateral para filtros
 st.sidebar.header("Parámetros del Informe")
 
-anos_disponibles = (
-    sorted(df["Año"].dropna().unique()) if "Año" in df.columns else [2026]
-)
+# Restringir años exclusivamente de 2024 a 2026
+anos_disponibles = [2024, 2025, 2026]
+if "Año" in df.columns:
+  anos_excel = sorted(df["Año"].dropna().unique())
+  anos_disponibles = [a for a in anos_disponibles if a in anos_excel]
+if not anos_disponibles:
+  anos_disponibles = [2026]
+
 ano = st.sidebar.selectbox("Año", anos_disponibles)
 
+# Selección múltiple de meses
 meses_disponibles = (
     df["Mes"].dropna().unique().tolist() if "Mes" in df.columns else ["Enero"]
 )
-mes = st.sidebar.selectbox("Mes", meses_disponibles)
+meses_sel = st.sidebar.multiselect(
+    "Selecciona mes(es)", meses_disponibles, default=meses_disponibles[:1]
+)
 
 departamentos_disponibles = (
     sorted(df["Departamento"].dropna().unique())
@@ -53,18 +61,29 @@ else:
       default=departamentos_disponibles,
   )
 
-if not tiendas:
-  st.warning("Por favor, selecciona al menos una tienda en la barra lateral.")
+if not tiendas or not meses_sel:
+  st.warning(
+      "Por favor, selecciona al menos una tienda y un mes en la barra lateral."
+  )
   st.stop()
 
-st.subheader(f"Informe para: {', '.join(tiendas)} ({mes} {ano})")
+nombre_meses_str = (
+    ", ".join(meses_sel) if len(meses_sel) <= 3 else f"{len(meses_sel)} meses"
+)
+st.subheader(f"Informe para: {', '.join(tiendas)} ({nombre_meses_str} {ano})")
 
-# Filtrado de datos
-mask = (df["Año"] == ano) & (df["Mes"] == mes) & (df["Departamento"].isin(tiendas))
+# Filtrado de datos por Año, Meses seleccionados y Tiendas
+mask = (
+    (df["Año"] == ano)
+    & (df["Mes"].isin(meses_sel))
+    & (df["Departamento"].isin(tiendas))
+)
 df_filtered = df[mask]
 
 if df_filtered.empty:
-  st.warning("¡Aviso! No se han encontrado datos para esos criterios.")
+  st.warning(
+      "¡Aviso! No se han encontrado datos para esos criterios de selección."
+  )
   st.stop()
 
 resumen = df_filtered.groupby("Resultados")["Importe D"].sum().to_dict()
@@ -74,7 +93,7 @@ def get_val(cat):
   return resumen.get(cat, 0.0)
 
 
-# Obtenemos Ventas y el valor exacto de R. B.
+# Obtenemos Ventas y el valor de R. B. (si hay varios meses seleccionados, se promedia o acumula según criterio, aquí tomamos el valor medio de R.B. o directo)
 ventas = get_val("Ventas")
 r_bruta = get_val("R. B.")
 
@@ -120,7 +139,9 @@ rdo_financiero = ingresos_financieros - gastos_financieros
 resultados_extraordinarios = get_val("Resultados Extraordinarios")
 bai = baii + rdo_financiero + resultados_extraordinarios
 
-# Creamos el DataFrame base con los valores numéricos
+# Columna del mes/es para la tabla
+col_nombre_periodo = f"{nombre_meses_str} {ano}"
+
 data_out = [
     ("Ventas", ventas),
     ("Coste Ventas", coste_ventas),
@@ -145,63 +166,15 @@ data_out = [
     ("B.A.I.", bai),
 ]
 
-df_resultado = pd.DataFrame(data_out, columns=["Resultados", f"{mes} {ano}"])
+df_resultado = pd.DataFrame(data_out, columns=["Resultados", col_nombre_periodo])
 
-
-# Función de formato con estilos destacados y alineación a la derecha
-def estilizar_informe(row):
-  concepto = row["Resultados"]
-  valor = row[f"{mes} {ano}"]
-
-  # Formateo de número (euros o porcentaje)
-  if concepto == "R. B.":
-    val_str = (
-        f"{valor * 100:,.2f}%"
-        .replace(",", "X")
-        .replace(".", ",")
-        .replace("X", ".")
-    )
-  else:
-    val_str = (
-        f"{valor:,.2f} €".replace(",", "X").replace(".", ",").replace("X", ".")
-    )
-
-  # Campos destacados (Negrita, fondo sutil y alineación derecha)
-  campos_destacados = [
-      "MARGEN BRUTO",
-      "R. B.",
-      "Ingresos Operativos",
-      "GASTOS ESTRUCTURA",
-      "B.A.I.I.",
-      "RDO. FINANCIERO",
-      "B.A.I.",
-  ]
-
-  if concepto in campos_destacados:
-    return [
-        (
-            "font-weight: bold; background-color: #f0f2f6; text-align: left;"
-            " padding: 6px;"
-        ),
-        (
-            "font-weight: bold; background-color: #f0f2f6; text-align: right;"
-            f" padding: 6px; content: '{val_str}';"
-        ),
-    ]
-  else:
-    return [
-        "text-align: left; padding: 4px;",
-        f"text-align: right; padding: 4px;",
-    ]
-
-
-# Aplicamos el formato visual al DataFrame de pantalla
+# Creamos el DataFrame formateado para visualización
 df_display = df_resultado.copy()
 
 
 def formatear_valor(row):
   concepto = row["Resultados"]
-  valor = row[f"{mes} {ano}"]
+  valor = row[col_nombre_periodo]
   if concepto == "R. B.":
     return (
         f"{valor * 100:,.2f}%".replace(",", "X").replace(".", ",").replace("X", ".")
@@ -212,39 +185,54 @@ def formatear_valor(row):
     )
 
 
-df_display[f"{mes} {ano}"] = df_display.apply(formatear_valor, axis=1)
+df_display[col_nombre_periodo] = df_display.apply(formatear_valor, axis=1)
 
-# Estilizado con pandas Styler para alinear y destacar filas
-df_styled = df_display.style.set_properties(
-    subset=["Resultados"], **{"text-align": "left"}
-).set_properties(
-    subset=[f"{mes} {ano}"], **{"text-align": "right"}
-).apply(
-    lambda row: [
-        (
-            "font-weight: bold; background-color: #eef2f7; color: #1f2937;"
-            if row["Resultados"]
-            in [
-                "MARGEN BRUTO",
-                "R. B.",
-                "Ingresos Operativos",
-                "GASTOS ESTRUCTURA",
-                "B.A.I.I.",
-                "RDO. FINANCIERO",
-                "B.A.I.",
-            ]
-            else ""
-        )
-    ]
-    * len(row),
-    axis=1,
+# Estilizado avanzado con Pandas Styler: Concepto a la izquierda, Valores forzados rígidamente a la derecha
+campos_destacados = [
+    "MARGEN BRUTO",
+    "R. B.",
+    "Ingresos Operativos",
+    "GASTOS ESTRUCTURA",
+    "B.A.I.I.",
+    "RDO. FINANCIERO",
+    "B.A.I.",
+]
+
+df_styled = (
+    df_display.style.set_properties(
+        subset=["Resultados"],
+        **{"text-align": "left", "padding-left": "10px"},
+    )
+    .set_properties(
+        subset=[col_nombre_periodo],
+        **{"text-align": "right", "padding-right": "20px"},
+    )
+    .apply(
+        lambda row: [
+            (
+                "font-weight: bold; background-color: #eef2f7; color: #1f2937;"
+                if row["Resultados"] in campos_destacados
+                else "text-align: left;"
+            )
+        ]
+        * 1
+        + [
+            (
+                "font-weight: bold; background-color: #eef2f7; color: #1f2937;"
+                if row["Resultados"] in campos_destacados
+                else "text-align: right;"
+            )
+        ]
+        * 1,
+        axis=1,
+    )
 )
 
 # Mostrar tabla estilizada en pantalla
 st.dataframe(df_styled, use_container_width=True, hide_index=True)
 
 
-# Botón de descarga directa en Excel (mantiene los números puros)
+# Botón de descarga directa en Excel (valores puros)
 def to_excel(df_to_save):
   output = io.BytesIO()
   with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -253,7 +241,9 @@ def to_excel(df_to_save):
 
 
 excel_data = to_excel(df_resultado)
-nombre_salida = f"Informe_{'_'.join(tiendas)}_{mes}_{ano}.xlsx"
+nombre_salida = (
+    f"Informe_{'_'.join(tiendas)}_{nombre_meses_str.replace(', ', '_')}_{ano}.xlsx"
+)
 
 st.download_button(
     label="📥 Descargar Informe en Excel",
