@@ -4,7 +4,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS optimizado: primera columna al 12% y cabeceras sin recortes de texto
+# CSS diferenciado: fluido para cuentas de resultados y ancho fijo compacto para R.B.
 st.markdown(
     """
     <style>
@@ -30,14 +30,14 @@ st.markdown(
         font-size: 0.95rem !important;
         margin-bottom: 0.1rem !important;
     }
-    /* Estructura de tabla */
+    
+    /* --- ESTILOS GENERALES (CUENTA DE RESULTADOS) --- */
     table {
         width: 100% !important;
         font-size: 11px !important;
         border-collapse: collapse !important;
         table-layout: fixed !important;
     }
-    /* Cabeceras: permiten mostrar el texto completo sin ocultarlo */
     th {
         padding: 4px 6px !important;
         white-space: normal !important;
@@ -45,27 +45,39 @@ st.markdown(
         text-overflow: clip !important;
         font-weight: bold !important;
     }
-    /* Celdas de datos: truncado limpio con puntos suspensivos */
     td {
         padding: 3px 6px !important;
         white-space: nowrap !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
     }
-    /* Primera columna fija al 12% de ancho */
     th:first-child, td:first-child {
         width: 12% !important;
         text-align: left !important;
         padding-left: 6px !important;
     }
-    /* Resto de columnas alineadas a la derecha */
-    th:not(:first-child) {
+    th:not(:first-child), td:not(:first-child) {
         text-align: right !important;
         padding-right: 8px !important;
     }
-    td:not(:first-child) {
+
+    /* --- ESTILOS ESPECÍFICOS PARA ANÁLISIS DE R.B. (ANCHO FIJO / 10 CARACTERES) --- */
+    .tabla-rb table {
+        table-layout: auto !important;
+        width: auto !important;
+    }
+    .tabla-rb th:first-child, .tabla-rb td:first-child {
+        width: 140px !important;
+        min-width: 140px !important;
+        max-width: 140px !important;
+        text-align: left !important;
+    }
+    .tabla-rb th:not(:first-child), .tabla-rb td:not(:first-child) {
+        width: 85px !important;
+        min-width: 85px !important;
+        max-width: 85px !important;
         text-align: right !important;
-        padding-right: 8px !important;
+        white-space: nowrap !important;
     }
     </style>
 """,
@@ -146,7 +158,7 @@ meses_sel = st.sidebar.multiselect(
 
 
 # =====================================================================
-# MÓDULO 1: ANÁLISIS ESPECÍFICO DE R.B. (AISLADO E INDEPENDIENTE)
+# MÓDULO 1: ANÁLISIS ESPECÍFICO DE R.B. (CON ANCHO FIJO ESTRICTO)
 # =====================================================================
 if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
   st.sidebar.markdown("---")
@@ -291,7 +303,9 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         styles.append(row_styles)
       return pd.DataFrame(styles, index=s.index, columns=s.columns)
 
+    st.markdown('<div class="tabla-rb">', unsafe_allow_html=True)
     st.table(df_res_d.style.apply(estilizar_rb, axis=None))
+    st.markdown('</div>', unsafe_allow_html=True)
 
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -361,7 +375,9 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         styles.append(row_styles)
       return pd.DataFrame(styles, index=s.index, columns=s.columns)
 
+    st.markdown('<div class="tabla-rb">', unsafe_allow_html=True)
     st.table(df_acum_d.style.apply(estilizar_acum, axis=None))
+    st.markdown('</div>', unsafe_allow_html=True)
 
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -474,7 +490,9 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         styles.append(row_styles)
       return pd.DataFrame(styles, index=s.index, columns=s.columns)
 
+    st.markdown('<div class="tabla-rb">', unsafe_allow_html=True)
     st.table(df_inter_d.style.apply(estilizar_inter, axis=None))
+    st.markdown('</div>', unsafe_allow_html=True)
 
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -488,7 +506,7 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
 
 
 # =====================================================================
-# MÓDULO 2: CUENTA DE RESULTADOS COMPLETA (ORIGINAL)
+# MÓDULO 2: CUENTA DE RESULTADOS COMPLETA (MANTIENE DISEÑO FLUIDO)
 # =====================================================================
 else:
   modo_analisis = st.sidebar.radio(
