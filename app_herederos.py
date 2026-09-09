@@ -4,7 +4,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS optimizado: primera columna de conceptos al 12% y resto fluido
+# CSS optimizado: primera columna al 12% y cabeceras sin recortes de texto
 st.markdown(
     """
     <style>
@@ -30,27 +30,40 @@ st.markdown(
         font-size: 0.95rem !important;
         margin-bottom: 0.1rem !important;
     }
-    /* Estructura de tabla con ancho fijo del 12% para conceptos y automático para datos */
+    /* Estructura de tabla */
     table {
         width: 100% !important;
         font-size: 11px !important;
         border-collapse: collapse !important;
         table-layout: fixed !important;
     }
-    th, td {
+    /* Cabeceras: permiten mostrar el texto completo sin ocultarlo */
+    th {
+        padding: 4px 6px !important;
+        white-space: normal !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+        font-weight: bold !important;
+    }
+    /* Celdas de datos: truncado limpio con puntos suspensivos */
+    td {
         padding: 3px 6px !important;
         white-space: nowrap !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
     }
-    /* Primera columna de conceptos fija al 12% de ancho */
+    /* Primera columna fija al 12% de ancho */
     th:first-child, td:first-child {
         width: 12% !important;
         text-align: left !important;
         padding-left: 6px !important;
     }
-    /* Todas las columnas de datos alineadas a la derecha y con espacio proporcionado */
-    th:not(:first-child), td:not(:first-child) {
+    /* Resto de columnas alineadas a la derecha */
+    th:not(:first-child) {
+        text-align: right !important;
+        padding-right: 8px !important;
+    }
+    td:not(:first-child) {
         text-align: right !important;
         padding-right: 8px !important;
     }
