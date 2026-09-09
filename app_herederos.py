@@ -4,7 +4,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS avanzado para fijar la primera columna al 15% y hacer el resto de columnas fluidas
+# CSS avanzado para fijar la primera columna al 13.5% y hacer el resto de columnas fluidas
 st.markdown(
     """
     <style>
@@ -30,7 +30,7 @@ st.markdown(
         font-size: 0.95rem !important;
         margin-bottom: 0.1rem !important;
     }
-    /* Estructura de tabla con ancho fijo del 15% para conceptos y automático para datos */
+    /* Estructura de tabla con ancho fijo del 13.5% para conceptos y automático para datos */
     table {
         width: 100% !important;
         font-size: 11px !important;
@@ -43,9 +43,9 @@ st.markdown(
         overflow: hidden !important;
         text-overflow: ellipsis !important;
     }
-    /* Primera columna de conceptos fija al 15% de ancho */
+    /* Primera columna de conceptos fija al 13.5% de ancho (-10% adicional) */
     th:first-child, td:first-child {
-        width: 15% !important;
+        width: 13.5% !important;
         text-align: left !important;
         padding-left: 6px !important;
     }
@@ -657,7 +657,7 @@ def aplicar_estilos_styler(s):
 
 df_styled = df_resultado_display.style.apply(aplicar_estilos_styler, axis=None)
 
-# Renderizado con st.table con ancho controlado en la primera columna
+# Renderizado con st.table con ancho controlado al 13.5% en la primera columna
 st.table(df_styled)
 
 
