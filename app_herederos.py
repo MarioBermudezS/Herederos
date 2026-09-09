@@ -132,9 +132,9 @@ meses_sel = st.sidebar.multiselect(
 )
 
 
-# ==========================================
-# MÓDULO 1: ANÁLISIS ESPECÍFICO DE R.B.
-# ==========================================
+# =====================================================================
+# MÓDULO 1: ANÁLISIS ESPECÍFICO DE R.B. (AISLADO E INDEPENDIENTE)
+# =====================================================================
 if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
   st.sidebar.markdown("---")
   st.sidebar.subheader("Opciones de Análisis R.B.")
@@ -146,6 +146,27 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
           "Comparativa Interanual (Año vs Año Anterior)",
       ],
   )
+
+  def calcular_rb_puro(df_f):
+    if df_f.empty:
+      return 0.0
+    total_mb = 0.0
+    total_ventas = 0.0
+    for (a_v, m_v, d_v), group in df_f.groupby(["Año", "Mes", "Departamento"]):
+      v_row = group[group["Resultados"] == "Ventas"]["Importe D"].sum()
+      rb_rows = group[
+          group["Resultados"]
+          .str.strip()
+          .str.upper()
+          .isin(["R. B.", "R.B.", "R.B"])
+      ]["Importe D"]
+      rb_val = rb_rows.iloc[0] if not rb_rows.empty else 0.0
+      total_ventas += v_row
+      total_mb += v_row * rb_val
+    if total_ventas == 0:
+      resumen = df_f.groupby("Resultados")["Importe D"].sum().to_dict()
+      return resumen.get("R. B.", 0.0)
+    return total_mb / total_ventas
 
   if tipo_analisis_rb == "Evolución Mensual por Tienda":
     tiendas_rb = st.sidebar.multiselect(
@@ -161,29 +182,6 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         f"Análisis R.B. - Evolución Mensual por Tienda ({ano})"
     )
 
-    def calcular_rb_puro(df_f):
-      if df_f.empty:
-        return 0.0
-      total_mb = 0.0
-      total_ventas = 0.0
-      for (a_v, m_v, d_v), group in df_f.groupby(
-          ["Año", "Mes", "Departamento"]
-      ):
-        v_row = group[group["Resultados"] == "Ventas"]["Importe D"].sum()
-        rb_rows = group[
-            group["Resultados"]
-            .str.strip()
-            .str.upper()
-            .isin(["R. B.", "R.B.", "R.B"])
-        ]["Importe D"]
-        rb_val = rb_rows.iloc[0] if not rb_rows.empty else 0.0
-        total_ventas += v_row
-        total_mb += v_row * rb_val
-      if total_ventas == 0:
-        resumen = df_f.groupby("Resultados")["Importe D"].sum().to_dict()
-        return resumen.get("R. B.", 0.0)
-      return total_mb / total_ventas
-
     columnas_tabla = ["Resultados"] + meses_sel
     if len(meses_sel) > 1:
       columnas_tabla.append("Promedio Acumulado")
@@ -194,7 +192,6 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
     for tienda in tiendas_rb:
       fila_d = [tienda]
       fila_n = [tienda]
-
       for mes in meses_sel:
         mask = (
             (df["Año"] == ano)
@@ -310,29 +307,6 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
     )
     st.subheader(f"Análisis R.B. - Vista Acumulada ({nombre_m_str} {ano})")
 
-    def calcular_rb_puro(df_f):
-      if df_f.empty:
-        return 0.0
-      total_mb = 0.0
-      total_ventas = 0.0
-      for (a_v, m_v, d_v), group in df_f.groupby(
-          ["Año", "Mes", "Departamento"]
-      ):
-        v_row = group[group["Resultados"] == "Ventas"]["Importe D"].sum()
-        rb_rows = group[
-            group["Resultados"]
-            .str.strip()
-            .str.upper()
-            .isin(["R. B.", "R.B.", "R.B"])
-        ]["Importe D"]
-        rb_val = rb_rows.iloc[0] if not rb_rows.empty else 0.0
-        total_ventas += v_row
-        total_mb += v_row * rb_val
-      if total_ventas == 0:
-        resumen = df_f.groupby("Resultados")["Importe D"].sum().to_dict()
-        return resumen.get("R. B.", 0.0)
-      return total_mb / total_ventas
-
     filas_acum_d = []
     filas_acum_n = []
 
@@ -406,30 +380,7 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         f"Comparativa Interanual R.B. ({nombre_m_str}): {ano} vs {ano_ant}"
     )
 
-    def calcular_rb_puro(df_f):
-      if df_f.empty:
-        return 0.0
-      total_mb = 0.0
-      total_ventas = 0.0
-      for (a_v, m_v, d_v), group in df_f.groupby(
-          ["Año", "Mes", "Departamento"]
-      ):
-        v_row = group[group["Resultados"] == "Ventas"]["Importe D"].sum()
-        rb_rows = group[
-            group["Resultados"]
-            .str.strip()
-            .str.upper()
-            .isin(["R. B.", "R.B.", "R.B"])
-        ]["Importe D"]
-        rb_val = rb_rows.iloc[0] if not rb_rows.empty else 0.0
-        total_ventas += v_row
-        total_mb += v_row * rb_val
-      if total_ventas == 0:
-        resumen = df_f.groupby("Resultados")["Importe D"].sum().to_dict()
-        return resumen.get("R. B.", 0.0)
-      return total_mb / total_ventas
-
-    # DEFINICIÓN EXACTA Y AISLADA DE COLUMNAS PARA EVITAR CONFLICTOS DE CACHÉ
+    # DEFINICIÓN ESTRICTA DE CABECERAS CON LOS AÑOS CORRECTOS
     col_a = f"R.B. {ano}"
     col_b = f"R.B. {ano_ant}"
     columnas_interanual_rb = ["Resultados", col_a, col_b, "Var. pp"]
@@ -523,9 +474,9 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
     )
 
 
-# ==========================================
-# MÓDULO 2: CUENTA DE RESULTADOS COMPLETA
-# ==========================================
+# =====================================================================
+# MÓDULO 2: CUENTA DE RESULTADOS COMPLETA (ORIGINAL)
+# =====================================================================
 else:
   modo_analisis = st.sidebar.radio(
       "Tipo de Análisis",
