@@ -429,10 +429,10 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         return resumen.get("R. B.", 0.0)
       return total_mb / total_ventas
 
-    # ASIGNACIÓN LIMPIA DE CABECERAS CON LOS AÑOS CORRECTOS
-    col_actual = f"R.B. {ano}"
-    col_anterior = f"R.B. {ano_ant}"
-    columnas_tabla = ["Resultados", col_actual, col_anterior, "Var. pp"]
+    # DEFINICIÓN EXACTA Y AISLADA DE COLUMNAS PARA EVITAR CONFLICTOS DE CACHÉ
+    col_a = f"R.B. {ano}"
+    col_b = f"R.B. {ano_ant}"
+    columnas_interanual_rb = ["Resultados", col_a, col_b, "Var. pp"]
 
     filas_inter_d = []
     filas_inter_n = []
@@ -486,8 +486,8 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
           f"{var_tot_pp * 100:,.2f} pp".replace(",", "X").replace(".", ",").replace("X", "."),
       ])
 
-    df_inter_d = pd.DataFrame(filas_inter_d, columns=columnas_tabla)
-    df_inter_n = pd.DataFrame(filas_inter_n, columns=columnas_tabla)
+    df_inter_d = pd.DataFrame(filas_inter_d, columns=columnas_interanual_rb)
+    df_inter_n = pd.DataFrame(filas_inter_n, columns=columnas_interanual_rb)
 
     def estilizar_inter(s):
       styles = []
@@ -497,7 +497,7 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
             "text-align: left !important; padding-left: 6px;"
             + ("font-weight: bold; background-color: #d1fae5;" if is_tot else "")
         ]
-        for col_idx, col in enumerate(columnas_tabla[1:], start=1):
+        for col_idx, col in enumerate(columnas_interanual_rb[1:], start=1):
           c_style = "text-align: right !important; padding-right: 8px;"
           if is_tot:
             c_style += " background-color: #d1fae5; font-weight: bold;"
@@ -823,7 +823,7 @@ else:
         fila_disp.append(f"{val_t1:,.2f} €".replace(",", "X").replace(".", ",").replace("X", "."))
         fila_disp.append(f"{val_t2:,.2f} €".replace(",", "X").replace(".", ",").replace("X", "."))
         fila_disp.append(f"{var_eur:,.2f} €".replace(",", "X").replace(".", ",").replace("X", "."))
-        fila_disp.append(f"{val_pct:,.2f}%".replace(",", "X").replace(".", ",").replace("X", "."))
+        fila_disp.append(f"{var_pct:,.2f}%".replace(",", "X").replace(".", ",").replace("X", "."))
 
     else:
       ejes_eval = (
