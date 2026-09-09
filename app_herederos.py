@@ -429,13 +429,11 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         return resumen.get("R. B.", 0.0)
       return total_mb / total_ventas
 
-    # CORRECCIÓN EXPLÍCITA DE CABECERAS PARA MOSTRAR LOS AÑOS CORRECTAMENTE
-    columnas_tabla = [
-        "Resultados",
-        f"R.B. {ano}",
-        f"R.B. {ano_ant}",
-        "Var. pp",
-    ]
+    # Definición explícita de variables de cabecera con los años reales
+    col_actual = f"R.B. {ano}"
+    col_anterior = f"R.B. {ano_ant}"
+    columnas_tabla = ["Resultados", col_actual, col_anterior, "Var. pp"]
+
     filas_inter_d = []
     filas_inter_n = []
 
