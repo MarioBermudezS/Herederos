@@ -738,6 +738,12 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
   filas_tabla_display = []
   filas_valores_numericos = []
 
+  conceptos_gastos = [
+      "Coste Ventas", "Gastos Personal", "Alquileres", "Reparaciones",
+      "Seguros", "Suministros", "Otros Servicios", "TOTAL GASTOS OPERATIVOS",
+      "Amortizaciones", "GASTOS ESTRUCTURA", "Gastos Financieros"
+  ]
+
   for concepto in conceptos:
     fila_disp = [concepto]
     fila_num = [concepto]
@@ -856,6 +862,10 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
 
   def aplicar_estilos_kpi(s):
     styles = []
+    # Activar colores cuando comparamos múltiples tiendas en paralelo
+    es_multi_tienda = (modo_analisis == "Comparativa Multi-Tienda (Totales)" and len(tiendas) > 1 and opcion_multitienda == "Total") or \
+                      (modo_analisis == "Evolución Mensual / Tienda" and len(tiendas) > 1)
+
     for i, row in df_kpi_display.iterrows():
       concepto = row["Resultados"]
       is_destacado = concepto in campos_destacados
@@ -863,26 +873,57 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
           "text-align: left !important; padding-left: 6px;"
           + ("font-weight: bold; background-color: #eef2f7;" if is_destacado else "")
       ]
+
+      # Recopilar valores de las tiendas para calcular min y max de esta fila
+      tiendas_valores = []
+      if es_multi_tienda:
+        for col_idx, col in enumerate(columnas_tabla[1:], start=1):
+          if col != "Total":
+            val_n = df_kpi_numericos.loc[i, col]
+            if isinstance(val_n, (int, float)):
+              tiendas_valores.append(val_n)
+
+      max_val = max(tiendas_valores) if tiendas_valores else None
+      min_val = min(tiendas_valores) if tiendas_valores else None
+
       for col_idx, col in enumerate(columnas_tabla[1:], start=1):
         num_val = df_kpi_numericos.loc[i, col]
         is_negativo = isinstance(num_val, (int, float)) and num_val < 0
         is_columna_total = col == "Total" or col == f"Total {ano}"
         cell_style = "text-align: right !important; padding-right: 8px;"
+
         if is_columna_total:
           cell_style += " background-color: #d1fae5;"
         elif is_destacado:
           cell_style += " background-color: #eef2f7;"
         if is_destacado:
           cell_style += " font-weight: bold;"
+
+        # Coloración condicional: Verde para el mejor, Rojo para el peor entre tiendas
+        if es_multi_tienda and col != "Total" and max_val is not None and min_val is not None and max_val != min_val:
+          es_gasto = concepto in conceptos_gastos
+          if isinstance(num_val, (int, float)):
+            if es_gasto:
+              # En gastos, el mejor es el menor (verde) y el peor es el mayor (rojo)
+              if num_val == min_val:
+                cell_style += " color: #16a34a; font-weight: bold;"
+              elif num_val == max_val:
+                cell_style += " color: #dc2626; font-weight: bold;"
+            else:
+              # En ingresos/márgenes/beneficios, el mejor es el mayor (verde) y el peor es el menor (rojo)
+              if num_val == max_val:
+                cell_style += " color: #16a34a; font-weight: bold;"
+              elif num_val == min_val:
+                cell_style += " color: #dc2626; font-weight: bold;"
+
         if col == "Var. pp" and isinstance(num_val, (int, float)):
           if num_val != 0:
             color_v = "#16a34a" if num_val > 0 else "#dc2626"
             cell_style += f" color: {color_v}; font-weight: bold;"
         else:
-          if is_negativo:
+          if is_negativo and not (es_multi_tienda and col != "Total"):
             cell_style += " color: #dc2626; font-weight: bold;"
-          elif is_destacado:
-            cell_style += " color: #1f2937;"
+
         row_styles.append(cell_style)
       styles.append(row_styles)
     return pd.DataFrame(styles, index=s.index, columns=s.columns)
