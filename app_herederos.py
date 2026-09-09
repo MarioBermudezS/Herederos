@@ -4,7 +4,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS optimizado
+# CSS optimizado para anchos de columna fluidos y scroll profesional
 st.markdown(
     """
     <style>
@@ -30,33 +30,42 @@ st.markdown(
         font-size: 0.95rem !important;
         margin-bottom: 0.1rem !important;
     }
+    
+    /* Contenedor fluido con scroll horizontal automático si hay muchas columnas */
+    div[data-testid="stTable"], div.stTable {
+        width: 100% !important;
+        overflow-x: auto !important;
+    }
+    
     table {
         width: 100% !important;
         font-size: 11px !important;
         border-collapse: collapse !important;
-        table-layout: fixed !important;
+        table-layout: auto !important;
     }
     th {
-        padding: 4px 6px !important;
-        white-space: normal !important;
-        overflow: visible !important;
-        text-overflow: clip !important;
+        padding: 5px 8px !important;
+        white-space: nowrap !important;
         font-weight: bold !important;
     }
     td {
-        padding: 3px 6px !important;
+        padding: 4px 8px !important;
         white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
     }
     th:first-child, td:first-child {
-        width: 14% !important;
+        width: 16% !important;
+        min-width: 150px !important;
         text-align: left !important;
-        padding-left: 6px !important;
+        padding-left: 8px !important;
+        position: sticky !important;
+        left: 0;
+        background-color: inherit;
+        z-index: 2;
     }
     th:not(:first-child), td:not(:first-child) {
         text-align: right !important;
-        padding-right: 8px !important;
+        padding-right: 10px !important;
+        min-width: 85px !important;
     }
     </style>
 """,
@@ -897,14 +906,13 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
         if is_destacado:
           cell_style += " font-weight: bold;"
 
-        # Coloración condicional con sombreado de celda suave de prueba
         if es_multi_tienda and col != "Total" and max_val is not None and min_val is not None and max_val != min_val:
           if isinstance(num_val, (int, float)):
             if concepto in ["RDO. FINANCIERO", "Resultados Extraordinarios"]:
               if num_val == min_val:
-                cell_style += " color: #16a34a; background-color: #d1fae5; font-weight: bold;" # Verde claro + texto verde
+                cell_style += " color: #16a34a; background-color: #d1fae5; font-weight: bold;"
               elif num_val == max_val:
-                cell_style += " color: #dc2626; background-color: #fee2e2; font-weight: bold;" # Rojo claro + texto rojo
+                cell_style += " color: #dc2626; background-color: #fee2e2; font-weight: bold;"
             elif concepto in conceptos_gastos:
               if num_val == min_val:
                 cell_style += " color: #16a34a; background-color: #d1fae5; font-weight: bold;"
