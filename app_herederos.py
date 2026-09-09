@@ -4,7 +4,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS para ajustar la primera columna al 12.5%, alinear a la derecha y ocultar elementos innecesarios
+# CSS ultra-optimizado para autoajustar y forzar alineaciones perfectas
 st.markdown(
     """
     <style>
@@ -35,17 +35,15 @@ st.markdown(
         width: 100% !important;
         font-size: 11px !important;
         border-collapse: collapse !important;
-        table-layout: fixed !important;
+        table-layout: auto !important; /* Permitir autoajuste fluido basado en el contenido */
     }
     th, td {
-        padding: 2px 4px !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
+        padding: 2px 6px !important;
         white-space: nowrap !important;
     }
-    /* Columna de conceptos al 12.5% */
+    /* Columna de conceptos compacta y fija */
     th:first-child, td:first-child {
-        width: 12.5% !important;
+        width: 13% !important;
         text-align: left !important;
     }
     /* Columnas de datos con alineación absoluta a la derecha */
@@ -188,7 +186,6 @@ def calcular_resultados(df_filtered):
 
   ventas = get_v("Ventas")
 
-  # Cálculo ponderado real de R. B. y Margen Bruto evitando sumar porcentajes brutos
   total_mb = 0.0
   total_ventas_calc = 0.0
   for (ano_v, mes_v, dep_v), group in df_filtered.groupby(
@@ -322,7 +319,13 @@ if modo_analisis == "Comparativa Multi-Tienda (Totales)":
 
 elif modo_analisis == "Comparativa Interanual (Año vs Año Anterior)":
   ano_anterior = ano - 1
-  columnas_eje = [f"Total {ano_anterior}", f"Total {ano}", "Var. €", "Var. %"]
+  # ORDEN PEDIDO: Primera columna el año actual, segunda el anterior, luego diferencias
+  columnas_eje = [
+      f"Total {ano}",
+      f"Total {ano_anterior}",
+      "Var. €",
+      "Var. %",
+  ]
 
   mask_ant = (
       (df["Año"] == ano_anterior)
@@ -395,15 +398,15 @@ for concepto in conceptos:
     val_act = datos_fuente["Act"].get(concepto, 0.0)
 
     if concepto == "R. B.":
-      fila_num.extend([val_ant, val_act, 0.0, 0.0])
+      fila_num.extend([val_act, val_ant, 0.0, 0.0])
       fila_disp.append(
-          f"{val_ant * 100:,.2f}%"
+          f"{val_act * 100:,.2f}%"
           .replace(",", "X")
           .replace(".", ",")
           .replace("X", ".")
       )
       fila_disp.append(
-          f"{val_act * 100:,.2f}%"
+          f"{val_ant * 100:,.2f}%"
           .replace(",", "X")
           .replace(".", ",")
           .replace("X", ".")
@@ -412,16 +415,16 @@ for concepto in conceptos:
     else:
       var_eur = val_act - val_ant
       var_pct = (var_eur / abs(val_ant) * 100) if val_ant != 0 else 0.0
-      fila_num.extend([val_ant, val_act, var_eur, var_pct])
+      fila_num.extend([val_act, val_ant, var_eur, var_pct])
 
       fila_disp.append(
-          f"{val_ant:,.2f} €"
+          f"{val_act:,.2f} €"
           .replace(",", "X")
           .replace(".", ",")
           .replace("X", ".")
       )
       fila_disp.append(
-          f"{val_act:,.2f} €"
+          f"{val_ant:,.2f} €"
           .replace(",", "X")
           .replace(".", ",")
           .replace("X", ".")
@@ -576,6 +579,19 @@ campos_destacados = [
     "B.A.I.",
 ]
 
+# Definición de conceptos que se consideran ingresos/márgenes/beneficios (positivo = bueno, verde)
+# y cuáles son gastos (positivo = incremento de gasto = malo, rojo; ahorro de gasto = verde)
+conceptos_ingresos = [
+    "Ventas",
+    "MARGEN BRUTO",
+    "Otros Ingresos",
+    "Ingresos Operativos",
+    "Ingresos Financieros",
+    "B.A.I.I.",
+    "RDO. FINANCIERO",
+    "B.A.I.",
+]
+
 
 def aplicar_estilos_styler(s):
   styles = []
@@ -591,13 +607,11 @@ def aplicar_estilos_styler(s):
     for col_idx, col in enumerate(columnas_tabla[1:], start=1):
       num_val = df_valores_numericos.loc[i, col]
       is_negativo = isinstance(num_val, (int, float)) and num_val < 0
-      is_columna_total = (
-          col == "Total" or col == f"Total {ano}" or col == "Var. €"
-      )
+      is_columna_total = col == "Total" or col == f"Total {ano}"
 
       cell_style = "text-align: right !important; padding-right: 6px;"
 
-      if is_columna_total and col != "Var. €":
+      if is_columna_total:
         cell_style += " background-color: #d1fae5;"
       elif is_destacado:
         cell_style += " background-color: #eef2f7;"
@@ -605,10 +619,22 @@ def aplicar_estilos_styler(s):
       if is_destacado:
         cell_style += " font-weight: bold;"
 
-      if is_negativo:
-        cell_style += " color: #dc2626; font-weight: bold;"
-      elif is_destacado:
-        cell_style += " color: #1f2937;"
+      # Lógica de colores diferenciada para diferencias (Var. €)
+      if col in ["Var. €", "Var. %"] and isinstance(num_val, (int, float)):
+        if num_val != 0:
+          es_ingreso = concepto in conceptos_ingresos
+          if es_ingreso:
+            # Para ingresos: positivo es bueno (verde), negativo es malo (rojo)
+            color_var = "#16a34a" if num_val > 0 else "#dc2626"
+          else:
+            # Para gastos: positivo significa que el gasto ha subido (malo -> rojo), negativo significa ahorro (bueno -> verde)
+            color_var = "#dc2626" if num_val > 0 else "#16a34a"
+          cell_style += f" color: {color_var}; font-weight: bold;"
+      else:
+        if is_negativo:
+          cell_style += " color: #dc2626; font-weight: bold;"
+        elif is_destacado:
+          cell_style += " color: #1f2937;"
 
       row_styles.append(cell_style)
     styles.append(row_styles)
@@ -618,7 +644,7 @@ def aplicar_estilos_styler(s):
 
 df_styled = df_resultado_display.style.apply(aplicar_estilos_styler, axis=None)
 
-# Mostrar la tabla estática compacta
+# Mostrar la tabla estática con autoajuste fluido corregido
 st.table(df_styled)
 
 
