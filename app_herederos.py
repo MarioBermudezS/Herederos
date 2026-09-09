@@ -4,7 +4,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS definitivo: sin anchos forzados ni espacios muertos, adaptado 100% al ancho de pantalla
+# CSS avanzado para fijar la primera columna al 15% y hacer el resto de columnas fluidas
 st.markdown(
     """
     <style>
@@ -30,23 +30,26 @@ st.markdown(
         font-size: 0.95rem !important;
         margin-bottom: 0.1rem !important;
     }
-    /* Tabla fluida que ocupa el 100% del ancho real sin huecos libres */
+    /* Estructura de tabla con ancho fijo del 15% para conceptos y automático para datos */
     table {
         width: 100% !important;
         font-size: 11px !important;
         border-collapse: collapse !important;
-        table-layout: auto !important;
+        table-layout: fixed !important;
     }
     th, td {
         padding: 3px 6px !important;
         white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
     }
-    /* Primera columna alineada a la izquierda */
+    /* Primera columna de conceptos fija al 15% de ancho */
     th:first-child, td:first-child {
+        width: 15% !important;
         text-align: left !important;
         padding-left: 6px !important;
     }
-    /* Todas las columnas de datos alineadas a la derecha */
+    /* Todas las columnas de datos alineadas a la derecha y con espacio proporcionado */
     th:not(:first-child), td:not(:first-child) {
         text-align: right !important;
         padding-right: 8px !important;
@@ -654,7 +657,7 @@ def aplicar_estilos_styler(s):
 
 df_styled = df_resultado_display.style.apply(aplicar_estilos_styler, axis=None)
 
-# Renderizado con st.table fluido sin espacios muertos
+# Renderizado con st.table con ancho controlado en la primera columna
 st.table(df_styled)
 
 
