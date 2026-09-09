@@ -4,7 +4,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS para ajustar la primera columna de conceptos al 15% y optimizar las numéricas
+# CSS para ajustar la primera columna de conceptos al 12.5% y optimizar las numéricas
 st.markdown(
     """
     <style>
@@ -43,9 +43,9 @@ st.markdown(
         text-overflow: ellipsis !important;
         white-space: nowrap !important;
     }
-    /* Columna de conceptos ajustada al 15% */
+    /* Columna de conceptos reducida un 15% adicional (12.5%) */
     th:first-child, td:first-child {
-        width: 15% !important;
+        width: 12.5% !important;
         text-align: left !important;
     }
     /* Columnas de datos con el resto del espacio y alineación absoluta a la derecha */
@@ -407,7 +407,7 @@ def aplicar_estilos_styler(s):
 
 df_styled = df_resultado_display.style.apply(aplicar_estilos_styler, axis=None)
 
-# Tabla estática compacta con la primera columna al 15%
+# Tabla estática compacta con la primera columna al 12.5%
 st.table(df_styled)
 
 
