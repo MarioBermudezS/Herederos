@@ -82,7 +82,7 @@ except Exception as e:
 # Menú lateral para filtros
 st.sidebar.header("Parámetros del Informe")
 
-# Selector del Módulo Principal (Añadido el nuevo Módulo de KPIs)
+# Selector del Módulo Principal
 modulo_principal = st.sidebar.radio(
     "Módulo de Análisis",
     [
@@ -479,7 +479,7 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
 
 
 # =====================================================================
-# MÓDULO 2: INFORME KPI (% SOBRE VENTAS) - NUEVO
+# MÓDULO 2: INFORME KPI (% SOBRE VENTAS)
 # =====================================================================
 elif modulo_principal == "Informe KPI (% sobre Ventas)":
   modo_analisis = st.sidebar.radio(
@@ -738,6 +738,20 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
   filas_tabla_display = []
   filas_valores_numericos = []
 
+  conceptos_gastos = [
+      "Coste Ventas",
+      "Gastos Personal",
+      "Alquileres",
+      "Reparaciones",
+      "Seguros",
+      "Suministros",
+      "Otros Servicios",
+      "TOTAL GASTOS OPERATIVOS",
+      "Amortizaciones",
+      "GASTOS ESTRUCTURA",
+      "Gastos Financieros",
+  ]
+
   for concepto in conceptos:
     fila_disp = [concepto]
     fila_num = [concepto]
@@ -825,8 +839,6 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
           tot_concepto = sum(datos_fuente[m].get(concepto, 0.0) for m in meses_sel)
 
         if concepto == "R. B.":
-          tot_mb = sum(datos_fuente[t].get("MARGEN BRUTO", 0.0) if modo_analisis == "Comparativa Multi-Tienda (Totales)" else datos_fuente[m].get("MARGEN BRUTO", 0.0) for t in (tiendas if modo_analisis == "Comparativa Multi-Tienda (Totales)" else []) ) # O simplificado
-          # Para el total de R.B., ponderamos con Margen Bruto / Ventas totales
           tot_mb_val = 0.0
           for itm in (tiendas if modo_analisis == "Comparativa Multi-Tienda (Totales)" else (tiendas if len(tiendas)>1 else meses_sel)):
             v_v = datos_fuente[itm].get("Ventas", 0.0)
@@ -849,6 +861,7 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
       "MARGEN BRUTO",
       "R. B.",
       "Ingresos Operativos",
+      "TOTAL GASTOS OPERATIVOS",
       "GASTOS ESTRUCTURA",
       "B.A.I.I.",
       "RDO. FINANCIERO",
@@ -857,6 +870,10 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
 
   def aplicar_estilos_kpi(s):
     styles = []
+    
+    # Determinar si estamos en una vista multi-tienda (para resaltar mejor/peor valor entre tiendas)
+    es_multi_tienda = (modo_analisis == "Comparativa Multi-Tienda (Totales)" and len(tiendas) > 1 and opcion_multitienda == "Total")
+    
     for i, row in df_kpi_display.iterrows():
       concepto = row["Resultados"]
       is_destacado = concepto in campos_destacados
@@ -864,29 +881,74 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
           "text-align: left !important; padding-left: 6px;"
           + ("font-weight: bold; background-color: #eef2f7;" if is_destacado else "")
       ]
+      
+      # Extraer valores numéricos de las columnas de tienda para buscar el min/max si aplica
+      cols_datos_indices = list(range(1, len(columnas_tabla)))
+      if es_multi_tienda:
+        # Excluir la columna 'Total' si existe al final para comparar solo entre tiendas individuales
+        tiendas_cols_vals = []
+        for idx in cols_datos_indices:
+          col_name = columnas_tabla[idx]
+          if col_name != "Total":
+            val_n = df_kpi_numericos.loc[i, col_name]
+            if isinstance(val_n, (int, float)):
+              tiendas_cols_vals.append((idx, val_n))
+
       for col_idx, col in enumerate(columnas_tabla[1:], start=1):
         num_val = df_kpi_numericos.loc[i, col]
         is_negativo = isinstance(num_val, (int, float)) and num_val < 0
         is_columna_total = col == "Total" or col == f"Total {ano}"
         cell_style = "text-align: right !important; padding-right: 8px;"
+
         if is_columna_total:
           cell_style += " background-color: #d1fae5;"
         elif is_destacado:
           cell_style += " background-color: #eef2f7;"
         if is_destacado:
           cell_style += " font-weight: bold;"
+
+        # Coloración automática de mejor/peor entre tiendas en vista multi-tienda
+        if es_multi_tienda and col != "Total" and len(tiendas_cols_vals) > 1:
+          valores_solo = [v[1] for v in tiendas_cols_vals]
+          max_v = max(valores_solo)
+          min_v = min(valores_solo)
+          
+          if max_v != min_v:
+            # Si es un concepto de gasto, el "mejor" es el menor (verde) y el "peor" es el mayor (rojo)
+            # Si es un concepto de ingreso/margen/beneficio, el "mejor" es el mayor (verde) y el "peor" es el menor (rojo)
+            es_gasto = concepto in iconos_gastos_si_aplica or concepto in conceptos_gastos
+            
+            if isinstance(num_val, (int, float)):
+              if es_gasto:
+                if num_val == min_v:
+                  cell_style += " color: #16a34a; font-weight: bold;" # Verde (menor gasto)
+                elif num_val == max_v:
+                  cell_style += " color: #dc2626; font-weight: bold;" # Rojo (mayor gasto)
+              else:
+                if num_val == max_v:
+                  cell_style += " color: #16a34a; font-weight: bold;" # Verde (mayor ingreso/margen)
+                elif num_val == min_v:
+                  cell_style += " color: #dc2626; font-weight: bold;" # Rojo (menor ingreso/margen)
+
         if col == "Var. pp" and isinstance(num_val, (int, float)):
           if num_val != 0:
             color_v = "#16a34a" if num_val > 0 else "#dc2626"
             cell_style += f" color: {color_v}; font-weight: bold;"
         else:
-          if is_negativo:
+          if is_negativo and not (es_multi_tienda and col != "Total"):
             cell_style += " color: #dc2626; font-weight: bold;"
-          elif is_destacado:
+          elif is_destacado and not (es_multi_tienda and col != "Total"):
             cell_style += " color: #1f2937;"
+
         row_styles.append(cell_style)
       styles.append(row_styles)
     return pd.DataFrame(styles, index=s.index, columns=s.columns)
+
+  iconos_gastos_si_aplica = [
+      "Coste Ventas", "Gastos Personal", "Alquileres", "Reparaciones",
+      "Seguros", "Suministros", "Otros Servicios", "TOTAL GASTOS OPERATIVOS",
+      "Amortizaciones", "GASTOS ESTRUCTURA", "Gastos Financieros"
+  ]
 
   st.table(df_kpi_display.style.apply(aplicar_estilos_kpi, axis=None))
 
@@ -902,7 +964,7 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
 
 
 # =====================================================================
-# MÓDULO 3: CUENTA DE RESULTADOS COMPLETA (ORIGINAL)
+# MÓDULO 3: CUENTA DE RESULTADOS COMPLETA
 # =====================================================================
 else:
   modo_analisis = st.sidebar.radio(
@@ -1255,6 +1317,7 @@ else:
       "MARGEN BRUTO",
       "R. B.",
       "Ingresos Operativos",
+      "TOTAL GASTOS OPERATIVOS",
       "GASTOS ESTRUCTURA",
       "B.A.I.I.",
       "RDO. FINANCIERO",
