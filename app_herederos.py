@@ -4,7 +4,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS ultra-optimizado para anchos fijos proporcionales, alineación perfecta y evitar scroll
+# CSS para compactar al máximo, estrechar la columna de conceptos y alinear a la derecha
 st.markdown(
     """
     <style>
@@ -43,14 +43,13 @@ st.markdown(
         text-overflow: ellipsis !important;
         white-space: nowrap !important;
     }
-    /* Ancho controlado para la primera columna de conceptos */
+    /* Columna de conceptos más estrecha (20%) */
     th:first-child, td:first-child {
-        width: 28% !important;
+        width: 20% !important;
         text-align: left !important;
     }
-    /* Ancho uniforme y alineación absoluta a la derecha para todas las columnas de datos/meses/totales */
+    /* Columnas de datos con más espacio disponible y alineación absoluta a la derecha */
     th:not(:first-child), td:not(:first-child) {
-        width: 9% !important;
         text-align: right !important;
     }
     </style>
@@ -408,7 +407,7 @@ def aplicar_estilos_styler(s):
 
 df_styled = df_resultado_display.style.apply(aplicar_estilos_styler, axis=None)
 
-# Usamos st.table con formato estático compacto para garantizar que quepa todo de un vistazo sin scroll vertical
+# Tabla estática compacta para visualización directa en pantalla completa
 st.table(df_styled)
 
 
