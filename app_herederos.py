@@ -130,7 +130,8 @@ meses_sel = st.sidebar.multiselect(
     "Selecciona mes(es)", meses_disponibles, default=meses_disponibles[:1]
 )
 
-# Configuración de tiendas según el modo de análisis seleccionado
+# Configuración específica según el modo de análisis
+opcion_multitienda = "Total"
 if modo_analisis == "Comparativa Multi-Tienda (Totales)":
   tiendas = st.sidebar.multiselect(
       "Selecciona tiendas a comparar",
@@ -138,6 +139,9 @@ if modo_analisis == "Comparativa Multi-Tienda (Totales)":
       default=departamentos_disponibles[:2]
       if len(departamentos_disponibles) >= 2
       else departamentos_disponibles,
+  )
+  opcion_multitienda = st.sidebar.radio(
+      "Columna final / Vista", ["Total", "Diferencias (Tienda 2 - Tienda 1)"]
   )
 else:
   tipo_consulta = st.sidebar.radio(
@@ -172,22 +176,40 @@ else:
   st.subheader(f"Informe ({nombre_meses_str} {ano})")
 
 
-# Función para calcular los resultados con la lógica contable correcta
+# Función para calcular los resultados con agregación ponderada correcta de R.B.
 def calcular_resultados(df_filtered):
+  if df_filtered.empty:
+    return {c: 0.0 for c in conceptos}
+
   resumen = df_filtered.groupby("Resultados")["Importe D"].sum().to_dict()
 
   def get_v(cat):
     return resumen.get(cat, 0.0)
 
   ventas = get_v("Ventas")
-  r_bruta = get_v("R. B.")
-  if r_bruta == 0.0:
-    for k, v in resumen.items():
-      if k and str(k).strip().upper() in ["R. B.", "R.B.", "R.B"]:
-        r_bruta = v
-        break
 
-  margen_bruto = r_bruta * ventas
+  # Cálculo ponderado real de R. B. y Margen Bruto evitando sumar porcentajes brutos
+  total_mb = 0.0
+  total_ventas_calc = 0.0
+  for (ano_v, mes_v, dep_v), group in df_filtered.groupby(
+      ["Año", "Mes", "Departamento"]
+  ):
+    v_row = group[group["Resultados"] == "Ventas"]["Importe D"].sum()
+    rb_rows = group[
+        group["Resultados"].str.strip().str.upper().isin(["R. B.", "R.B.", "R.B"])
+    ]["Importe D"]
+    rb_val = rb_rows.iloc[0] if not rb_rows.empty else 0.0
+    total_ventas_calc += v_row
+    total_mb += v_row * rb_val
+
+  margen_bruto = total_mb
+  r_bruta = (
+      (margen_bruto / total_ventas_calc) if total_ventas_calc != 0 else 0.0
+  )
+  if total_ventas_calc == 0 and ventas != 0:
+    r_bruta = get_v("R. B.")
+    margen_bruto = r_bruta * ventas
+
   coste_ventas = ventas - margen_bruto
   otros_ingresos = get_v("Otros Ingresos")
   ingresos_operativos = margen_bruto + otros_ingresos
@@ -272,9 +294,15 @@ conceptos = [
 datos_fuente = {}
 
 if modo_analisis == "Comparativa Multi-Tienda (Totales)":
-  # Compara totales acumulados del periodo seleccionado para cada tienda elegida
-  columnas_eje = tiendas.copy()
-  columnas_eje.append("Total")
+  if (
+      opcion_multitienda == "Diferencias (Tienda 2 - Tienda 1)"
+      and len(tiendas) >= 2
+  ):
+    columnas_eje = [tiendas[0], tiendas[1], "Var. €", "Var. %"]
+  else:
+    columnas_eje = tiendas.copy()
+    if len(tiendas) > 1:
+      columnas_eje.append("Total")
 
   for tienda in tiendas:
     mask = (
@@ -284,15 +312,15 @@ if modo_analisis == "Comparativa Multi-Tienda (Totales)":
     )
     datos_fuente[tienda] = calcular_resultados(df[mask])
 
-  mask_total = (
-      (df["Año"] == ano)
-      & (df["Mes"].isin(meses_sel))
-      & (df["Departamento"].isin(tiendas))
-  )
-  datos_fuente["Total"] = calcular_resultados(df[mask_total])
+  if len(tiendas) > 1 and opcion_multitienda == "Total":
+    mask_total = (
+        (df["Año"] == ano)
+        & (df["Mes"].isin(meses_sel))
+        & (df["Departamento"].isin(tiendas))
+    )
+    datos_fuente["Total"] = calcular_resultados(df[mask_total])
 
 elif modo_analisis == "Comparativa Interanual (Año vs Año Anterior)":
-  # Compara el año actual frente al año anterior para las tiendas seleccionadas y los meses elegidos
   ano_anterior = ano - 1
   columnas_eje = [f"Total {ano_anterior}", f"Total {ano}", "Var. €", "Var. %"]
 
@@ -311,7 +339,6 @@ elif modo_analisis == "Comparativa Interanual (Año vs Año Anterior)":
   datos_fuente["Act"] = calcular_resultados(df[mask_act])
 
 else:
-  # Modo original: Evolución por meses o conjunto de tiendas
   if len(tiendas) > 1:
     modo_comparativa = "tiendas"
     columnas_eje = tiendas.copy()
@@ -412,6 +439,59 @@ for concepto in conceptos:
           .replace("X", ".")
       )
 
+  elif (
+      modo_analisis == "Comparativa Multi-Tienda (Totales)"
+      and opcion_multitienda == "Diferencias (Tienda 2 - Tienda 1)"
+      and len(tiendas) >= 2
+  ):
+    val_t1 = datos_fuente[tiendas[0]].get(concepto, 0.0)
+    val_t2 = datos_fuente[tiendas[1]].get(concepto, 0.0)
+
+    if concepto == "R. B.":
+      fila_num.extend([val_t1, val_t2, 0.0, 0.0])
+      fila_disp.append(
+          f"{val_t1 * 100:,.2f}%"
+          .replace(",", "X")
+          .replace(".", ",")
+          .replace("X", ".")
+      )
+      fila_disp.append(
+          f"{val_t2 * 100:,.2f}%"
+          .replace(",", "X")
+          .replace(".", ",")
+          .replace("X", ".")
+      )
+      fila_disp.extend(["-", "-"])
+    else:
+      var_eur = val_t2 - val_t1
+      var_pct = (var_eur / abs(val_t1) * 100) if val_t1 != 0 else 0.0
+      fila_num.extend([val_t1, val_t2, var_eur, var_pct])
+
+      fila_disp.append(
+          f"{val_t1:,.2f} €"
+          .replace(",", "X")
+          .replace(".", ",")
+          .replace("X", ".")
+      )
+      fila_disp.append(
+          f"{val_t2:,.2f} €"
+          .replace(",", "X")
+          .replace(".", ",")
+          .replace("X", ".")
+      )
+      fila_disp.append(
+          f"{var_eur:,.2f} €"
+          .replace(",", "X")
+          .replace(".", ",")
+          .replace("X", ".")
+      )
+      fila_disp.append(
+          f"{var_pct:,.2f}%"
+          .replace(",", "X")
+          .replace(".", ",")
+          .replace("X", ".")
+      )
+
   else:
     ejes_eval = (
         tiendas
@@ -473,9 +553,7 @@ for concepto in conceptos:
         fila_num.append(val_total)
         fila_disp.append(
             f"{val_total:,.2f} €"
-            .replace(",", "X")
-            .replace(".", ",")
-            .replace("X", ".")
+            .replace(",", "X").replace(".", ",").replace("X", ".")
         )
 
   filas_tabla_display.append(fila_disp)
@@ -513,11 +591,13 @@ def aplicar_estilos_styler(s):
     for col_idx, col in enumerate(columnas_tabla[1:], start=1):
       num_val = df_valores_numericos.loc[i, col]
       is_negativo = isinstance(num_val, (int, float)) and num_val < 0
-      is_columna_total = col == "Total" or col == f"Total {ano}"
+      is_columna_total = (
+          col == "Total" or col == f"Total {ano}" or col == "Var. €"
+      )
 
       cell_style = "text-align: right !important; padding-right: 6px;"
 
-      if is_columna_total:
+      if is_columna_total and col != "Var. €":
         cell_style += " background-color: #d1fae5;"
       elif is_destacado:
         cell_style += " background-color: #eef2f7;"
@@ -538,7 +618,7 @@ def aplicar_estilos_styler(s):
 
 df_styled = df_resultado_display.style.apply(aplicar_estilos_styler, axis=None)
 
-# Mostrar la tabla en pantalla completa sin scroll vertical
+# Mostrar la tabla estática compacta
 st.table(df_styled)
 
 
