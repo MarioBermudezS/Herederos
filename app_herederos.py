@@ -4,7 +4,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS para ocultar footer, menús de Streamlit y forzar alineaciones limpias
+# CSS ultra-optimizado para anchos fijos proporcionales, alineación perfecta y evitar scroll
 st.markdown(
     """
     <style>
@@ -16,19 +16,42 @@ st.markdown(
     
     /* Expandir la ventana al máximo y eliminar padding */
     .block-container {
-        padding-top: 0.3rem !important;
-        padding-bottom: 0.3rem !important;
+        padding-top: 0.2rem !important;
+        padding-bottom: 0.2rem !important;
         padding-left: 1rem !important;
         padding-right: 1rem !important;
         max-width: 100% !important;
     }
     h1 {
-        font-size: 1.3rem !important;
+        font-size: 1.2rem !important;
         margin-bottom: 0.1rem !important;
     }
     h3 {
-        font-size: 1.0rem !important;
+        font-size: 0.95rem !important;
         margin-bottom: 0.1rem !important;
+    }
+    /* Estilo de tabla hipercompacta estilo Excel */
+    table {
+        width: 100% !important;
+        font-size: 11px !important;
+        border-collapse: collapse !important;
+        table-layout: fixed !important; /* Fuerza a respetar los anchos asignados */
+    }
+    th, td {
+        padding: 2px 4px !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        white-space: nowrap !important;
+    }
+    /* Ancho controlado para la primera columna de conceptos */
+    th:first-child, td:first-child {
+        width: 28% !important;
+        text-align: left !important;
+    }
+    /* Ancho uniforme y alineación absoluta a la derecha para todas las columnas de datos/meses/totales */
+    th:not(:first-child), td:not(:first-child) {
+        width: 9% !important;
+        text-align: right !important;
     }
     </style>
 """,
@@ -64,7 +87,7 @@ if not anos_disponibles:
 
 ano = st.sidebar.selectbox("Año", anos_disponibles)
 
-# Filtrar departamentos exclusivamente del año seleccionado para que no aparezcan tiendas antiguas
+# Filtrar departamentos exclusivamente del año seleccionado
 df_ano = df[df["Año"] == ano] if "Año" in df.columns else df
 departamentos_disponibles = (
     sorted(df_ano["Departamento"].dropna().unique())
@@ -126,7 +149,7 @@ nombre_meses_str = (
 st.subheader(f"Informe ({nombre_meses_str} {ano})")
 
 
-# Función para calcular los resultados con la lógica contable corregida
+# Función para calcular los resultados con la lógica contable correcta
 def calcular_resultados(df_filtered):
   resumen = df_filtered.groupby("Resultados")["Importe D"].sum().to_dict()
 
@@ -322,9 +345,7 @@ for concepto in conceptos:
       fila_num.append(val_total)
       fila_disp.append(
           f"{val_total:,.2f} €"
-          .replace(",", "X")
-          .replace(".", ",")
-          .replace("X", ".")
+          .replace(",", "X").replace(".", ",").replace("X", ".")
       )
 
   filas_tabla_display.append(fila_disp)
@@ -364,7 +385,7 @@ def aplicar_estilos_styler(s):
       is_negativo = isinstance(num_val, (int, float)) and num_val < 0
       is_columna_total = col == "Total"
 
-      cell_style = "text-align: right !important; padding-right: 8px;"
+      cell_style = "text-align: right !important; padding-right: 6px;"
 
       if is_columna_total:
         cell_style += " background-color: #d1fae5;"
@@ -387,21 +408,8 @@ def aplicar_estilos_styler(s):
 
 df_styled = df_resultado_display.style.apply(aplicar_estilos_styler, axis=None)
 
-# Configuramos st.dataframe con anchos de columna dinámicos y controlados
-column_config = {
-    "Resultados": st.column_config.TextColumn(
-        "Resultados", width="medium"
-    )  # Fija un ancho compacto y elegante para los conceptos
-}
-for col in columnas_tabla[1:]:
-  column_config[col] = st.column_config.TextColumn(col, width="small")
-
-st.dataframe(
-    df_styled,
-    use_container_width=True,
-    hide_index=True,
-    column_config=column_config,
-)
+# Usamos st.table con formato estático compacto para garantizar que quepa todo de un vistazo sin scroll vertical
+st.table(df_styled)
 
 
 def to_excel(df_to_save):
