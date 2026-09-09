@@ -161,7 +161,6 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         f"Análisis R.B. - Evolución Mensual por Tienda ({ano})"
     )
 
-    # Función para calcular R.B. ponderado exacto para un conjunto de datos filtrados
     def calcular_rb_puro(df_f):
       if df_f.empty:
         return 0.0
@@ -181,7 +180,6 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         total_ventas += v_row
         total_mb += v_row * rb_val
       if total_ventas == 0:
-        # Fallback si no hay ventas desglosadas en filas
         resumen = df_f.groupby("Resultados")["Importe D"].sum().to_dict()
         return resumen.get("R. B.", 0.0)
       return total_mb / total_ventas
@@ -196,7 +194,6 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
     for tienda in tiendas_rb:
       fila_d = [tienda]
       fila_n = [tienda]
-      vals_tienda = []
 
       for mes in meses_sel:
         mask = (
@@ -205,7 +202,6 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
             & (df["Departamento"] == tienda)
         )
         val_rb = calcular_rb_puro(df[mask])
-        vals_tienda.append(val_rb)
         fila_n.append(val_rb)
         fila_d.append(
             f"{val_rb * 100:,.2f}%"
@@ -232,7 +228,6 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
       filas_display.append(fila_d)
       filas_nums.append(fila_n)
 
-    # Fila Total Grupo si hay varias tiendas
     if len(tiendas_rb) > 1:
       fila_d_tot = ["TOTAL GRUPO"]
       fila_n_tot = ["TOTAL GRUPO"]
@@ -288,7 +283,6 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
 
     st.table(df_res_d.style.apply(estilizar_rb, axis=None))
 
-    # Botón descarga Excel
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
       df_res_n.to_excel(writer, index=False, sheet_name="Analisis_RB_Mensual")
@@ -435,6 +429,7 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         return resumen.get("R. B.", 0.0)
       return total_mb / total_ventas
 
+    # CORRECCIÓN DE CABECERAS: Año actual vs Año anterior (ano_ant)
     columnas_tabla = [
         "Resultados",
         f"R.B. {ano}",
@@ -508,9 +503,8 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
           c_style = "text-align: right !important; padding-right: 8px;"
           if is_tot:
             c_style += " background-color: #d1fae5; font-weight: bold;"
-          # Colorear variación en puntos porcentuales
           if col == "Var. pp":
-            val_num = df_inter_n.loc[i, col]
+            val_num = filas_inter_n[i][col_idx]
             if val_num != 0:
               color_v = "#16a34a" if val_num > 0 else "#dc2626"
               c_style += f" color: {color_v}; font-weight: bold;"
@@ -532,7 +526,7 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
 
 
 # ==========================================
-# MÓDULO 2: CUENTA DE RESULTADOS COMPLETA (ORIGINAL)
+# MÓDULO 2: CUENTA DE RESULTADOS COMPLETA
 # ==========================================
 else:
   modo_analisis = st.sidebar.radio(
