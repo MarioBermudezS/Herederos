@@ -4,7 +4,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS optimizado: sin anchos fijos en porcentaje para permitir autoajuste real y fluido
+# CSS definitivo: sin anchos forzados ni espacios muertos, adaptado 100% al ancho de pantalla
 st.markdown(
     """
     <style>
@@ -14,7 +14,7 @@ st.markdown(
     .viewerBadge_container {display: none !important;}
     a[href*="github.com"] {display: none !important;}
     
-    /* Expandir la ventana al máximo y eliminar padding excesivo */
+    /* Expandir la ventana al máximo y eliminar padding */
     .block-container {
         padding-top: 0.2rem !important;
         padding-bottom: 0.2rem !important;
@@ -30,7 +30,7 @@ st.markdown(
         font-size: 0.95rem !important;
         margin-bottom: 0.1rem !important;
     }
-    /* Estilo de tabla hipercompacta con autoajuste natural */
+    /* Tabla fluida que ocupa el 100% del ancho real sin huecos libres */
     table {
         width: 100% !important;
         font-size: 11px !important;
@@ -38,17 +38,18 @@ st.markdown(
         table-layout: auto !important;
     }
     th, td {
-        padding: 4px 8px !important;
+        padding: 3px 6px !important;
         white-space: nowrap !important;
     }
-    /* Primera columna de conceptos con ancho automático sin forzar porcentajes gigantes */
+    /* Primera columna alineada a la izquierda */
     th:first-child, td:first-child {
         text-align: left !important;
-        width: 1% !important; /* Fuerza al navegador a ajustarla al texto más largo de forma óptima */
+        padding-left: 6px !important;
     }
-    /* Forzar alineación absoluta a la derecha en todas las columnas numéricas */
+    /* Todas las columnas de datos alineadas a la derecha */
     th:not(:first-child), td:not(:first-child) {
         text-align: right !important;
+        padding-right: 8px !important;
     }
     </style>
 """,
@@ -653,7 +654,7 @@ def aplicar_estilos_styler(s):
 
 df_styled = df_resultado_display.style.apply(aplicar_estilos_styler, axis=None)
 
-# Tabla estática con autoajuste natural por contenido (sin scroll vertical y alineada a la derecha)
+# Renderizado con st.table fluido sin espacios muertos
 st.table(df_styled)
 
 
