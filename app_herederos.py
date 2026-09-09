@@ -4,7 +4,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS avanzado para ocultar footer, autoajustar anchos de columna al contenido y forzar alineación
+# CSS para ocultar footer, menús de Streamlit y forzar alineaciones limpias
 st.markdown(
     """
     <style>
@@ -29,26 +29,6 @@ st.markdown(
     h3 {
         font-size: 1.0rem !important;
         margin-bottom: 0.1rem !important;
-    }
-    /* Estilo de tabla hipercompacta con autoajuste real al contenido */
-    table {
-        width: 100% !important;
-        font-size: 11.5px !important;
-        border-collapse: collapse !important;
-    }
-    th, td {
-        padding: 2px 6px !important;
-        white-space: nowrap !important;
-        width: 1% !important; /* Fuerza a la celda a ajustarse estrictamente a su contenido */
-    }
-    /* La primera columna (conceptos) puede expandirse un poco más si es necesario */
-    th:first-child, td:first-child {
-        text-align: left !important;
-        width: auto !important;
-    }
-    /* Forzar alineación absoluta a la derecha en todas las columnas numéricas */
-    th:not(:first-child), td:not(:first-child) {
-        text-align: right !important;
     }
     </style>
 """,
@@ -186,12 +166,10 @@ def calcular_resultados(df_filtered):
       - amortizaciones
   )
 
-  # Corrección Financiera: Gastos Financieros (+) + Ingresos Financieros (-)
   gastos_financieros = get_v("Gastos Financieros")
   ingresos_financieros = get_v("Ingresos Financieros")
   rdo_financiero = gastos_financieros + ingresos_financieros
 
-  # Corrección Extraordinarios: Si es negativo actúa como ingreso (resta al coste/suma al beneficio)
   resultados_extraordinarios = get_v("Resultados Extraordinarios")
 
   bai = baii - rdo_financiero - resultados_extraordinarios
@@ -409,7 +387,21 @@ def aplicar_estilos_styler(s):
 
 df_styled = df_resultado_display.style.apply(aplicar_estilos_styler, axis=None)
 
-st.table(df_styled)
+# Configuramos st.dataframe con anchos de columna dinámicos y controlados
+column_config = {
+    "Resultados": st.column_config.TextColumn(
+        "Resultados", width="medium"
+    )  # Fija un ancho compacto y elegante para los conceptos
+}
+for col in columnas_tabla[1:]:
+  column_config[col] = st.column_config.TextColumn(col, width="small")
+
+st.dataframe(
+    df_styled,
+    use_container_width=True,
+    hide_index=True,
+    column_config=column_config,
+)
 
 
 def to_excel(df_to_save):
