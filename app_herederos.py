@@ -35,7 +35,7 @@ st.markdown(
         width: 100% !important;
         font-size: 11px !important;
         border-collapse: collapse !important;
-        table-layout: auto !important; /* Permitir autoajuste fluido basado en el contenido */
+        table-layout: auto !important;
     }
     th, td {
         padding: 2px 6px !important;
@@ -319,7 +319,6 @@ if modo_analisis == "Comparativa Multi-Tienda (Totales)":
 
 elif modo_analisis == "Comparativa Interanual (Año vs Año Anterior)":
   ano_anterior = ano - 1
-  # ORDEN PEDIDO: Primera columna el año actual, segunda el anterior, luego diferencias
   columnas_eje = [
       f"Total {ano}",
       f"Total {ano_anterior}",
@@ -398,7 +397,8 @@ for concepto in conceptos:
     val_act = datos_fuente["Act"].get(concepto, 0.0)
 
     if concepto == "R. B.":
-      fila_num.extend([val_act, val_ant, 0.0, 0.0])
+      var_diff = val_act - val_ant
+      fila_num.extend([val_act, val_ant, var_diff, 0.0])
       fila_disp.append(
           f"{val_act * 100:,.2f}%"
           .replace(",", "X")
@@ -411,7 +411,13 @@ for concepto in conceptos:
           .replace(".", ",")
           .replace("X", ".")
       )
-      fila_disp.extend(["-", "-"])
+      fila_disp.append(
+          f"{var_diff * 100:,.2f} pp"
+          .replace(",", "X")
+          .replace(".", ",")
+          .replace("X", ".")
+      )
+      fila_disp.append("-")
     else:
       var_eur = val_act - val_ant
       var_pct = (var_eur / abs(val_ant) * 100) if val_ant != 0 else 0.0
@@ -451,7 +457,8 @@ for concepto in conceptos:
     val_t2 = datos_fuente[tiendas[1]].get(concepto, 0.0)
 
     if concepto == "R. B.":
-      fila_num.extend([val_t1, val_t2, 0.0, 0.0])
+      var_diff = val_t2 - val_t1
+      fila_num.extend([val_t1, val_t2, var_diff, 0.0])
       fila_disp.append(
           f"{val_t1 * 100:,.2f}%"
           .replace(",", "X")
@@ -464,7 +471,13 @@ for concepto in conceptos:
           .replace(".", ",")
           .replace("X", ".")
       )
-      fila_disp.extend(["-", "-"])
+      fila_disp.append(
+          f"{var_diff * 100:,.2f} pp"
+          .replace(",", "X")
+          .replace(".", ",")
+          .replace("X", ".")
+      )
+      fila_disp.append("-")
     else:
       var_eur = val_t2 - val_t1
       var_pct = (var_eur / abs(val_t1) * 100) if val_t1 != 0 else 0.0
@@ -579,11 +592,11 @@ campos_destacados = [
     "B.A.I.",
 ]
 
-# Definición de conceptos que se consideran ingresos/márgenes/beneficios (positivo = bueno, verde)
-# y cuáles son gastos (positivo = incremento de gasto = malo, rojo; ahorro de gasto = verde)
+# Incluimos R. B. como concepto tipo ingreso (positivo = verde, negativo = rojo)
 conceptos_ingresos = [
     "Ventas",
     "MARGEN BRUTO",
+    "R. B.",
     "Otros Ingresos",
     "Ingresos Operativos",
     "Ingresos Financieros",
@@ -619,15 +632,12 @@ def aplicar_estilos_styler(s):
       if is_destacado:
         cell_style += " font-weight: bold;"
 
-      # Lógica de colores diferenciada para diferencias (Var. €)
       if col in ["Var. €", "Var. %"] and isinstance(num_val, (int, float)):
         if num_val != 0:
           es_ingreso = concepto in conceptos_ingresos
           if es_ingreso:
-            # Para ingresos: positivo es bueno (verde), negativo es malo (rojo)
             color_var = "#16a34a" if num_val > 0 else "#dc2626"
           else:
-            # Para gastos: positivo significa que el gasto ha subido (malo -> rojo), negativo significa ahorro (bueno -> verde)
             color_var = "#dc2626" if num_val > 0 else "#16a34a"
           cell_style += f" color: {color_var}; font-weight: bold;"
       else:
@@ -644,7 +654,7 @@ def aplicar_estilos_styler(s):
 
 df_styled = df_resultado_display.style.apply(aplicar_estilos_styler, axis=None)
 
-# Mostrar la tabla estática con autoajuste fluido corregido
+# Mostrar la tabla estática con autoajuste fluido
 st.table(df_styled)
 
 
