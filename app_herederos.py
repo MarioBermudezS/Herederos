@@ -4,7 +4,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS optimizado para adaptabilidad perfecta de columnas
+# CSS optimizado para alinear correctamente y mantener anchos naturales
 st.markdown(
     """
     <style>
@@ -31,9 +31,42 @@ st.markdown(
         margin-bottom: 0.1rem !important;
     }
     
-    /* Estilos limpios para tablas nativas ajustadas */
-    div[data-testid="stDataFrame"], div.stDataFrame {
+    /* Contenedor fluido con scroll horizontal automático si hay muchas columnas */
+    div[data-testid="stTable"], div.stTable {
         width: 100% !important;
+        overflow-x: auto !important;
+    }
+    
+    table {
+        width: max-content !important;
+        min-width: 100% !important;
+        font-size: 11px !important;
+        border-collapse: collapse !important;
+        table-layout: auto !important;
+    }
+    th {
+        padding: 5px 12px !important;
+        white-space: nowrap !important;
+        font-weight: bold !important;
+    }
+    td {
+        padding: 4px 12px !important;
+        white-space: nowrap !important;
+    }
+    th:first-child, td:first-child {
+        width: 180px !important;
+        min-width: 160px !important;
+        text-align: left !important;
+        padding-left: 8px !important;
+        position: sticky !important;
+        left: 0;
+        background-color: inherit;
+        z-index: 2;
+    }
+    th:not(:first-child), td:not(:first-child) {
+        text-align: right !important;
+        padding-right: 12px !important;
+        min-width: 90px !important;
     }
     </style>
 """,
@@ -260,11 +293,7 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         styles.append(row_styles)
       return pd.DataFrame(styles, index=s.index, columns=s.columns)
 
-    st.dataframe(
-        df_res_d.style.apply(estilizar_rb, axis=None),
-        use_container_width=True,
-        hide_index=True,
-    )
+    st.table(df_res_d.style.apply(estilizar_rb, axis=None))
 
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -334,11 +363,7 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         styles.append(row_styles)
       return pd.DataFrame(styles, index=s.index, columns=s.columns)
 
-    st.dataframe(
-        df_acum_d.style.apply(estilizar_acum, axis=None),
-        use_container_width=True,
-        hide_index=True,
-    )
+    st.table(df_acum_d.style.apply(estilizar_acum, axis=None))
 
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -450,11 +475,7 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         styles.append(row_styles)
       return pd.DataFrame(styles, index=s.index, columns=s.columns)
 
-    st.dataframe(
-        df_inter_d.style.apply(estilizar_inter, axis=None),
-        use_container_width=True,
-        hide_index=True,
-    )
+    st.table(df_inter_d.style.apply(estilizar_inter, axis=None))
 
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -916,11 +937,7 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
       styles.append(row_styles)
     return pd.DataFrame(styles, index=s.index, columns=s.columns)
 
-  st.dataframe(
-      df_kpi_display.style.apply(aplicar_estilos_kpi, axis=None),
-      use_container_width=True,
-      hide_index=True,
-  )
+  st.table(df_kpi_display.style.apply(aplicar_estilos_kpi, axis=None))
 
   output = io.BytesIO()
   with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -1339,11 +1356,7 @@ else:
       styles.append(row_styles)
     return pd.DataFrame(styles, index=s.index, columns=s.columns)
 
-  st.dataframe(
-      df_resultado_display.style.apply(aplicar_estilos_styler, axis=None),
-      use_container_width=True,
-      hide_index=True,
-  )
+  st.table(df_resultado_display.style.apply(aplicar_estilos_styler, axis=None))
 
   output = io.BytesIO()
   with pd.ExcelWriter(output, engine="openpyxl") as writer:
