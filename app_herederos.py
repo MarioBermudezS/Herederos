@@ -4,10 +4,16 @@ import streamlit as st
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS ultra-compacto y forzoso para alinear a la derecha y evitar scroll
+# CSS avanzado para ocultar footer, autoajustar anchos de columna al contenido y forzar alineación
 st.markdown(
     """
     <style>
+    /* Ocultar menú de Streamlit, footer y enlace a GitHub */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    .viewerBadge_container {display: none !important;}
+    a[href*="github.com"] {display: none !important;}
+    
     /* Expandir la ventana al máximo y eliminar padding */
     .block-container {
         padding-top: 0.3rem !important;
@@ -24,17 +30,23 @@ st.markdown(
         font-size: 1.0rem !important;
         margin-bottom: 0.1rem !important;
     }
-    /* Estilo de tabla hipercompacta estilo Excel para que quepa todo de un vistazo */
+    /* Estilo de tabla hipercompacta con autoajuste real al contenido */
     table {
         width: 100% !important;
         font-size: 11.5px !important;
         border-collapse: collapse !important;
     }
     th, td {
-        padding: 2px 5px !important;
+        padding: 2px 6px !important;
         white-space: nowrap !important;
+        width: 1% !important; /* Fuerza a la celda a ajustarse estrictamente a su contenido */
     }
-    /* FORZAR ALINEACIÓN ABSOLUTA A LA DERECHA EN TODAS LAS COLUMNAS NUMÉRICAS Y CABECERAS */
+    /* La primera columna (conceptos) puede expandirse un poco más si es necesario */
+    th:first-child, td:first-child {
+        text-align: left !important;
+        width: auto !important;
+    }
+    /* Forzar alineación absoluta a la derecha en todas las columnas numéricas */
     th:not(:first-child), td:not(:first-child) {
         text-align: right !important;
     }
@@ -72,6 +84,14 @@ if not anos_disponibles:
 
 ano = st.sidebar.selectbox("Año", anos_disponibles)
 
+# Filtrar departamentos exclusivamente del año seleccionado para que no aparezcan tiendas antiguas
+df_ano = df[df["Año"] == ano] if "Año" in df.columns else df
+departamentos_disponibles = (
+    sorted(df_ano["Departamento"].dropna().unique())
+    if "Departamento" in df_ano.columns
+    else []
+)
+
 # Selección múltiple de meses ordenados cronológicamente
 meses_orden = [
     "Enero",
@@ -98,12 +118,6 @@ meses_sel = st.sidebar.multiselect(
     "Selecciona mes(es)", meses_disponibles, default=meses_disponibles[:1]
 )
 
-departamentos_disponibles = (
-    sorted(df["Departamento"].dropna().unique())
-    if "Departamento" in df.columns
-    else []
-)
-
 tipo_consulta = st.sidebar.radio(
     "Tipo de consulta", ["Una tienda", "Conjunto de tiendas"]
 )
@@ -113,9 +127,11 @@ if tipo_consulta == "Una tienda":
   tiendas = [tienda_sel] if tienda_sel else []
 else:
   tiendas = st.sidebar.multiselect(
-      "Selecciona tiendas",
+      "Selecciona tiendas (comparativa)",
       departamentos_disponibles,
-      default=departamentos_disponibles,
+      default=departamentos_disponibles[:2]
+      if len(departamentos_disponibles) >= 2
+      else departamentos_disponibles,
   )
 
 if not tiendas or not meses_sel:
@@ -124,10 +140,13 @@ if not tiendas or not meses_sel:
   )
   st.stop()
 
-st.subheader(f"Informe para: {', '.join(tiendas)} ({ano})")
+nombre_meses_str = (
+    ", ".join(meses_sel) if len(meses_sel) <= 3 else f"{len(meses_sel)} meses"
+)
+st.subheader(f"Informe ({nombre_meses_str} {ano})")
 
 
-# Función para calcular los resultados de un conjunto de datos filtrados
+# Función para calcular los resultados con la lógica contable corregida
 def calcular_resultados(df_filtered):
   resumen = df_filtered.groupby("Resultados")["Importe D"].sum().to_dict()
 
@@ -166,11 +185,16 @@ def calcular_resultados(df_filtered):
       - total_gastos_operativos
       - amortizaciones
   )
+
+  # Corrección Financiera: Gastos Financieros (+) + Ingresos Financieros (-)
   gastos_financieros = get_v("Gastos Financieros")
   ingresos_financieros = get_v("Ingresos Financieros")
-  rdo_financiero = ingresos_financieros - gastos_financieros
+  rdo_financiero = gastos_financieros + ingresos_financieros
+
+  # Corrección Extraordinarios: Si es negativo actúa como ingreso (resta al coste/suma al beneficio)
   resultados_extraordinarios = get_v("Resultados Extraordinarios")
-  bai = baii + rdo_financiero + resultados_extraordinarios
+
+  bai = baii - rdo_financiero - resultados_extraordinarios
 
   return {
       "Ventas": ventas,
@@ -197,18 +221,6 @@ def calcular_resultados(df_filtered):
   }
 
 
-# Diccionario para almacenar los resultados de cada mes
-datos_por_mes = {}
-for mes in meses_sel:
-  mask = (
-      (df["Año"] == ano)
-      & (df["Mes"] == mes)
-      & (df["Departamento"].isin(tiendas))
-  )
-  df_m = df[mask]
-  datos_por_mes[mes] = calcular_resultados(df_m)
-
-# Construcción de la tabla final
 conceptos = [
     "Ventas",
     "Coste Ventas",
@@ -233,9 +245,52 @@ conceptos = [
     "B.A.I.",
 ]
 
-columnas_tabla = ["Resultados"] + meses_sel
-if len(meses_sel) > 1:
-  columnas_tabla.append("Total")
+datos_fuente = {}
+
+if len(tiendas) > 1:
+  modo_comparativa = "tiendas"
+  columnas_eje = tiendas.copy()
+  columnas_eje.append("Total")
+
+  for tienda in tiendas:
+    mask = (
+        (df["Año"] == ano)
+        & (df["Mes"].isin(meses_sel))
+        & (df["Departamento"] == tienda)
+    )
+    datos_fuente[tienda] = calcular_resultados(df[mask])
+
+  mask_total = (
+      (df["Año"] == ano)
+      & (df["Mes"].isin(meses_sel))
+      & (df["Departamento"].isin(tiendas))
+  )
+  datos_fuente["Total"] = calcular_resultados(df[mask_total])
+
+else:
+  modo_comparativa = "meses"
+  columnas_eje = meses_sel.copy()
+  if len(meses_sel) > 1:
+    columnas_eje.append("Total")
+
+  tienda_unica = tiendas[0]
+  for mes in meses_sel:
+    mask = (
+        (df["Año"] == ano)
+        & (df["Mes"] == mes)
+        & (df["Departamento"] == tienda_unica)
+    )
+    datos_fuente[mes] = calcular_resultados(df[mask])
+
+  if len(meses_sel) > 1:
+    mask_total_meses = (
+        (df["Año"] == ano)
+        & (df["Mes"].isin(meses_sel))
+        & (df["Departamento"] == tienda_unica)
+    )
+    datos_fuente["Total"] = calcular_resultados(df[mask_total_meses])
+
+columnas_tabla = ["Resultados"] + columnas_eje
 
 filas_tabla_display = []
 filas_valores_numericos = []
@@ -244,8 +299,10 @@ for concepto in conceptos:
   fila_disp = [concepto]
   fila_num = [concepto]
 
-  for mes in meses_sel:
-    val = datos_por_mes[mes].get(concepto, 0.0)
+  ejes_eval = tiendas if modo_comparativa == "tiendas" else meses_sel
+
+  for item in ejes_eval:
+    val = datos_fuente[item].get(concepto, 0.0)
     fila_num.append(val)
     if concepto == "R. B.":
       fila_disp.append(
@@ -259,12 +316,18 @@ for concepto in conceptos:
           f"{val:,.2f} €".replace(",", "X").replace(".", ",").replace("X", ".")
       )
 
-  if len(meses_sel) > 1:
+  if len(columnas_eje) > len(ejes_eval):
     if concepto == "R. B.":
-      tot_ventas = sum(datos_por_mes[m].get("Ventas", 0.0) for m in meses_sel)
-      tot_margen = sum(
-          datos_por_mes[m].get("MARGEN BRUTO", 0.0) for m in meses_sel
-      )
+      if modo_comparativa == "tiendas":
+        tot_ventas = sum(datos_fuente[t].get("Ventas", 0.0) for t in tiendas)
+        tot_margen = sum(
+            datos_fuente[t].get("MARGEN BRUTO", 0.0) for t in tiendas
+        )
+      else:
+        tot_ventas = sum(datos_fuente[m].get("Ventas", 0.0) for m in meses_sel)
+        tot_margen = sum(
+            datos_fuente[m].get("MARGEN BRUTO", 0.0) for m in meses_sel
+        )
       val_total = (tot_margen / tot_ventas) if tot_ventas != 0 else 0.0
       fila_num.append(val_total)
       fila_disp.append(
@@ -274,7 +337,10 @@ for concepto in conceptos:
           .replace("X", ".")
       )
     else:
-      val_total = sum(datos_por_mes[m].get(concepto, 0.0) for m in meses_sel)
+      if modo_comparativa == "tiendas":
+        val_total = sum(datos_fuente[t].get(concepto, 0.0) for t in tiendas)
+      else:
+        val_total = sum(datos_fuente[m].get(concepto, 0.0) for m in meses_sel)
       fila_num.append(val_total)
       fila_disp.append(
           f"{val_total:,.2f} €"
@@ -293,7 +359,6 @@ df_valores_numericos = pd.DataFrame(
     filas_valores_numericos, columns=columnas_tabla
 )
 
-# Campos que deben ir destacados en negrita
 campos_destacados = [
     "MARGEN BRUTO",
     "R. B.",
@@ -305,7 +370,6 @@ campos_destacados = [
 ]
 
 
-# Función de estilos Styler combinada con st.table para garantizar alineaciones y colores
 def aplicar_estilos_styler(s):
   styles = []
   for i, row in df_resultado_display.iterrows():
@@ -345,11 +409,9 @@ def aplicar_estilos_styler(s):
 
 df_styled = df_resultado_display.style.apply(aplicar_estilos_styler, axis=None)
 
-# Usamos st.table para que pinte todas las filas de golpe de forma estática y compacta sin barras de scroll
 st.table(df_styled)
 
 
-# Botón de descarga directa en Excel (valores numéricos puros)
 def to_excel(df_to_save):
   output = io.BytesIO()
   with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -358,7 +420,7 @@ def to_excel(df_to_save):
 
 
 excel_data = to_excel(df_valores_numericos)
-nombre_salida = f"Informe_{'_'.join(tiendas)}_{ano}.xlsx"
+nombre_salida = f"Informe_Resultados_{ano}.xlsx"
 
 st.download_button(
     label="📥 Descargar Informe en Excel",
