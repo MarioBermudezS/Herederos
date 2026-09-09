@@ -4,7 +4,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS diferenciado: fluido para cuentas de resultados y contenedor con scroll para R.B.
+# CSS general limpio
 st.markdown(
     """
     <style>
@@ -59,16 +59,6 @@ st.markdown(
     th:not(:first-child), td:not(:first-child) {
         text-align: right !important;
         padding-right: 8px !important;
-    }
-
-    /* --- CONTENEDOR ESPECÍFICO PARA ANÁLISIS DE R.B. --- */
-    .tabla-rb {
-        width: 100%;
-        overflow-x: auto;
-    }
-    .tabla-rb table {
-        width: auto !important;
-        table-layout: fixed !important;
     }
     </style>
 """,
@@ -294,9 +284,7 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         styles.append(row_styles)
       return pd.DataFrame(styles, index=s.index, columns=s.columns)
 
-    st.markdown('<div class="tabla-rb">', unsafe_allow_html=True)
     st.table(df_res_d.style.apply(estilizar_rb, axis=None))
-    st.markdown('</div>', unsafe_allow_html=True)
 
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -366,9 +354,7 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         styles.append(row_styles)
       return pd.DataFrame(styles, index=s.index, columns=s.columns)
 
-    st.markdown('<div class="tabla-rb">', unsafe_allow_html=True)
     st.table(df_acum_d.style.apply(estilizar_acum, axis=None))
-    st.markdown('</div>', unsafe_allow_html=True)
 
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -481,9 +467,7 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         styles.append(row_styles)
       return pd.DataFrame(styles, index=s.index, columns=s.columns)
 
-    st.markdown('<div class="tabla-rb">', unsafe_allow_html=True)
     st.table(df_inter_d.style.apply(estilizar_inter, axis=None))
-    st.markdown('</div>', unsafe_allow_html=True)
 
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
