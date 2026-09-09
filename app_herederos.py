@@ -4,7 +4,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS ultra-optimizado para autoajustar y forzar alineaciones perfectas
+# CSS para ocultar menús, footer y asegurar diseño limpio a pantalla completa
 st.markdown(
     """
     <style>
@@ -29,26 +29,6 @@ st.markdown(
     h3 {
         font-size: 0.95rem !important;
         margin-bottom: 0.1rem !important;
-    }
-    /* Estilo de tabla hipercompacta estilo Excel */
-    table {
-        width: 100% !important;
-        font-size: 11px !important;
-        border-collapse: collapse !important;
-        table-layout: auto !important;
-    }
-    th, td {
-        padding: 2px 6px !important;
-        white-space: nowrap !important;
-    }
-    /* Columna de conceptos compacta y fija */
-    th:first-child, td:first-child {
-        width: 13% !important;
-        text-align: left !important;
-    }
-    /* Columnas de datos con alineación absoluta a la derecha */
-    th:not(:first-child), td:not(:first-child) {
-        text-align: right !important;
     }
     </style>
 """,
@@ -592,7 +572,6 @@ campos_destacados = [
     "B.A.I.",
 ]
 
-# Incluimos R. B. como concepto tipo ingreso (positivo = verde, negativo = rojo)
 conceptos_ingresos = [
     "Ventas",
     "MARGEN BRUTO",
@@ -654,8 +633,19 @@ def aplicar_estilos_styler(s):
 
 df_styled = df_resultado_display.style.apply(aplicar_estilos_styler, axis=None)
 
-# Mostrar la tabla estática con autoajuste fluido
-st.table(df_styled)
+# Usamos st.dataframe nativo que calcula automáticamente el ancho óptimo por columna en función de la información solicitada
+column_config = {
+    "Resultados": st.column_config.TextColumn("Resultados", width="medium")
+}
+for col in columnas_tabla[1:]:
+  column_config[col] = st.column_config.TextColumn(col, width="small")
+
+st.dataframe(
+    df_styled,
+    use_container_width=True,
+    hide_index=True,
+    column_config=column_config,
+)
 
 
 def to_excel(df_to_save):
