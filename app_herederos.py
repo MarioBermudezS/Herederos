@@ -4,7 +4,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS diferenciado: fluido para cuentas de resultados y ancho fijo compacto para R.B.
+# CSS diferenciado: fluido para cuentas de resultados y contenedor con scroll para R.B.
 st.markdown(
     """
     <style>
@@ -61,23 +61,14 @@ st.markdown(
         padding-right: 8px !important;
     }
 
-    /* --- ESTILOS ESPECÍFICOS PARA ANÁLISIS DE R.B. (ANCHO FIJO / 10 CARACTERES) --- */
+    /* --- CONTENEDOR ESPECÍFICO PARA ANÁLISIS DE R.B. --- */
+    .tabla-rb {
+        width: 100%;
+        overflow-x: auto;
+    }
     .tabla-rb table {
-        table-layout: auto !important;
         width: auto !important;
-    }
-    .tabla-rb th:first-child, .tabla-rb td:first-child {
-        width: 140px !important;
-        min-width: 140px !important;
-        max-width: 140px !important;
-        text-align: left !important;
-    }
-    .tabla-rb th:not(:first-child), .tabla-rb td:not(:first-child) {
-        width: 85px !important;
-        min-width: 85px !important;
-        max-width: 85px !important;
-        text-align: right !important;
-        white-space: nowrap !important;
+        table-layout: fixed !important;
     }
     </style>
 """,
@@ -158,7 +149,7 @@ meses_sel = st.sidebar.multiselect(
 
 
 # =====================================================================
-# MÓDULO 1: ANÁLISIS ESPECÍFICO DE R.B. (CON ANCHO FIJO ESTRICTO)
+# MÓDULO 1: ANÁLISIS ESPECÍFICO DE R.B. (ANCHO FIJO ESTRICTO DE 10 CH)
 # =====================================================================
 if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
   st.sidebar.markdown("---")
@@ -292,11 +283,11 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
       for i, row in df_res_d.iterrows():
         is_total = row["Resultados"] == "TOTAL GRUPO"
         row_styles = [
-            "text-align: left !important; padding-left: 6px;"
+            "width: 140px; min-width: 140px; max-width: 140px; text-align: left !important; padding-left: 6px;"
             + ("font-weight: bold; background-color: #d1fae5;" if is_total else "")
         ]
         for col in columnas_tabla[1:]:
-          c_style = "text-align: right !important; padding-right: 8px;"
+          c_style = "width: 10ch; min-width: 10ch; max-width: 10ch; text-align: right !important; padding-right: 8px; white-space: nowrap; overflow: hidden;"
           if is_total or col == "Promedio Acumulado":
             c_style += " background-color: #d1fae5; font-weight: bold;"
           row_styles.append(c_style)
@@ -365,10 +356,10 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
       for i, row in df_acum_d.iterrows():
         is_tot = row["Resultados"] == "TOTAL GRUPO"
         row_styles = [
-            "text-align: left !important; padding-left: 6px;"
+            "width: 140px; min-width: 140px; max-width: 140px; text-align: left !important; padding-left: 6px;"
             + ("font-weight: bold; background-color: #d1fae5;" if is_tot else "")
         ]
-        c_style = "text-align: right !important; padding-right: 8px;"
+        c_style = "width: 10ch; min-width: 10ch; max-width: 10ch; text-align: right !important; padding-right: 8px; white-space: nowrap; overflow: hidden;"
         if is_tot:
           c_style += " background-color: #d1fae5; font-weight: bold;"
         row_styles.append(c_style)
@@ -474,11 +465,11 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
       for i, row in df_inter_d.iterrows():
         is_tot = row["Resultados"] == "TOTAL GRUPO"
         row_styles = [
-            "text-align: left !important; padding-left: 6px;"
+            "width: 140px; min-width: 140px; max-width: 140px; text-align: left !important; padding-left: 6px;"
             + ("font-weight: bold; background-color: #d1fae5;" if is_tot else "")
         ]
         for col_idx, col in enumerate(columnas_interanual_rb[1:], start=1):
-          c_style = "text-align: right !important; padding-right: 8px;"
+          c_style = "width: 10ch; min-width: 10ch; max-width: 10ch; text-align: right !important; padding-right: 8px; white-space: nowrap; overflow: hidden;"
           if is_tot:
             c_style += " background-color: #d1fae5; font-weight: bold;"
           if col == "Var. pp":
