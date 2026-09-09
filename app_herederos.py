@@ -4,7 +4,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS avanzado para tabla ultra-compacta, sin scroll vertical y alineación estricta a la derecha
+# CSS optimizado: sin anchos fijos en porcentaje para permitir autoajuste real y fluido
 st.markdown(
     """
     <style>
@@ -14,42 +14,41 @@ st.markdown(
     .viewerBadge_container {display: none !important;}
     a[href*="github.com"] {display: none !important;}
     
-    /* Expandir la ventana al máximo y eliminar padding */
+    /* Expandir la ventana al máximo y eliminar padding excesivo */
     .block-container {
-        padding-top: 0.1rem !important;
-        padding-bottom: 0.1rem !important;
-        padding-left: 0.8rem !important;
-        padding-right: 0.8rem !important;
+        padding-top: 0.2rem !important;
+        padding-bottom: 0.2rem !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
         max-width: 100% !important;
     }
     h1 {
-        font-size: 1.1rem !important;
-        margin-bottom: 0.05rem !important;
+        font-size: 1.2rem !important;
+        margin-bottom: 0.1rem !important;
     }
     h3 {
-        font-size: 0.9rem !important;
-        margin-bottom: 0.05rem !important;
+        font-size: 0.95rem !important;
+        margin-bottom: 0.1rem !important;
     }
-    /* Estilo de tabla hipercompacta estilo Excel sin barras de desplazamiento */
+    /* Estilo de tabla hipercompacta con autoajuste natural */
     table {
         width: 100% !important;
-        font-size: 10.5px !important;
+        font-size: 11px !important;
         border-collapse: collapse !important;
         table-layout: auto !important;
     }
     th, td {
-        padding: 2px 5px !important;
+        padding: 4px 8px !important;
         white-space: nowrap !important;
     }
-    /* Primera columna de conceptos alineada a la izquierda */
+    /* Primera columna de conceptos con ancho automático sin forzar porcentajes gigantes */
     th:first-child, td:first-child {
         text-align: left !important;
-        padding-left: 4px !important;
+        width: 1% !important; /* Fuerza al navegador a ajustarla al texto más largo de forma óptima */
     }
-    /* FORZAR ALINEACIÓN ABSOLUTA A LA DERECHA EN TODAS LAS COLUMNAS NUMÉRICAS Y CABECERAS */
+    /* Forzar alineación absoluta a la derecha en todas las columnas numéricas */
     th:not(:first-child), td:not(:first-child) {
         text-align: right !important;
-        padding-right: 6px !important;
     }
     </style>
 """,
@@ -613,7 +612,7 @@ def aplicar_estilos_styler(s):
     is_destacado = concepto in campos_destacados
 
     row_styles = [
-        "text-align: left !important; padding-left: 4px;"
+        "text-align: left !important; padding-left: 6px;"
         + ("font-weight: bold; background-color: #eef2f7;" if is_destacado else "")
     ]
 
@@ -622,7 +621,7 @@ def aplicar_estilos_styler(s):
       is_negativo = isinstance(num_val, (int, float)) and num_val < 0
       is_columna_total = col == "Total" or col == f"Total {ano}"
 
-      cell_style = "text-align: right !important; padding-right: 6px;"
+      cell_style = "text-align: right !important; padding-right: 8px;"
 
       if is_columna_total:
         cell_style += " background-color: #d1fae5;"
@@ -654,7 +653,7 @@ def aplicar_estilos_styler(s):
 
 df_styled = df_resultado_display.style.apply(aplicar_estilos_styler, axis=None)
 
-# Renderizado mediante st.table con ajuste fluido y sin scroll vertical
+# Tabla estática con autoajuste natural por contenido (sin scroll vertical y alineada a la derecha)
 st.table(df_styled)
 
 
