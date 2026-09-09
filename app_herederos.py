@@ -260,7 +260,11 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         styles.append(row_styles)
       return pd.DataFrame(styles, index=s.index, columns=s.columns)
 
-    st.dataframe(df_res_d.style.apply(estilizar_rb, axis=None), use_containerWidth=True, hide_index=True)
+    st.dataframe(
+        df_res_d.style.apply(estilizar_rb, axis=None),
+        use_container_width=True,
+        hide_index=True,
+    )
 
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -330,7 +334,11 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         styles.append(row_styles)
       return pd.DataFrame(styles, index=s.index, columns=s.columns)
 
-    st.dataframe(df_acum_d.style.apply(estilizar_acum, axis=None), use_containerWidth=True, hide_index=True)
+    st.dataframe(
+        df_acum_d.style.apply(estilizar_acum, axis=None),
+        use_container_width=True,
+        hide_index=True,
+    )
 
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -442,7 +450,11 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         styles.append(row_styles)
       return pd.DataFrame(styles, index=s.index, columns=s.columns)
 
-    st.dataframe(df_inter_d.style.apply(estilizar_inter, axis=None), use_containerWidth=True, hide_index=True)
+    st.dataframe(
+        df_inter_d.style.apply(estilizar_inter, axis=None),
+        use_container_width=True,
+        hide_index=True,
+    )
 
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -904,7 +916,11 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
       styles.append(row_styles)
     return pd.DataFrame(styles, index=s.index, columns=s.columns)
 
-  st.dataframe(df_kpi_display.style.apply(aplicar_estilos_kpi, axis=None), use_containerWidth=True, hide_index=True)
+  st.dataframe(
+      df_kpi_display.style.apply(aplicar_estilos_kpi, axis=None),
+      use_container_width=True,
+      hide_index=True,
+  )
 
   output = io.BytesIO()
   with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -1323,7 +1339,11 @@ else:
       styles.append(row_styles)
     return pd.DataFrame(styles, index=s.index, columns=s.columns)
 
-  st.dataframe(df_resultado_display.style.apply(aplicar_estilos_styler, axis=None), use_containerWidth=True, hide_index=True)
+  st.dataframe(
+      df_resultado_display.style.apply(aplicar_estilos_styler, axis=None),
+      use_container_width=True,
+      hide_index=True,
+  )
 
   output = io.BytesIO()
   with pd.ExcelWriter(output, engine="openpyxl") as writer:
