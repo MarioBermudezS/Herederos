@@ -4,7 +4,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS optimizado para distribución fluida y anchos adaptativos reales
+# CSS optimizado para expansión total al 100% y distribución fluida
 st.markdown(
     """
     <style>
@@ -14,12 +14,12 @@ st.markdown(
     .viewerBadge_container {display: none !important;}
     a[href*="github.com"] {display: none !important;}
     
-    /* Expandir la ventana al máximo y eliminar padding */
+    /* Expandir la ventana al máximo absoluto y eliminar márgenes laterales */
     .block-container {
-        padding-top: 0.2rem !important;
-        padding-bottom: 0.2rem !important;
-        padding-left: 1rem !important;
-        padding-right: 1rem !important;
+        padding-top: 0.5rem !important;
+        padding-bottom: 0.5rem !important;
+        padding-left: 1.5rem !important;
+        padding-right: 1.5rem !important;
         max-width: 100% !important;
     }
     h1 {
@@ -31,7 +31,7 @@ st.markdown(
         margin-bottom: 0.1rem !important;
     }
     
-    /* Contenedor de tabla adaptable con scroll horizontal si es necesario */
+    /* Forzar que el contenedor de la tabla ocupe el 100% de la pantalla */
     div[data-testid="stTable"], div.stTable {
         width: 100% !important;
         overflow-x: auto !important;
@@ -44,17 +44,17 @@ st.markdown(
         table-layout: auto !important;
     }
     th {
-        padding: 6px 14px !important;
+        padding: 6px 12px !important;
         white-space: nowrap !important;
         font-weight: bold !important;
     }
     td {
-        padding: 5px 14px !important;
+        padding: 5px 12px !important;
         white-space: nowrap !important;
     }
     th:first-child, td:first-child {
-        width: 220px !important;
-        min-width: 200px !important;
+        width: 25% !important;
+        min-width: 220px !important;
         text-align: left !important;
         padding-left: 10px !important;
         position: sticky !important;
@@ -64,7 +64,7 @@ st.markdown(
     }
     th:not(:first-child), td:not(:first-child) {
         text-align: right !important;
-        padding-right: 14px !important;
+        padding-right: 12px !important;
         white-space: nowrap !important;
     }
     </style>
