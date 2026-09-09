@@ -4,7 +4,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS para ocultar menús, footer y asegurar diseño limpio a pantalla completa
+# CSS avanzado para tabla ultra-compacta, sin scroll vertical y alineación estricta a la derecha
 st.markdown(
     """
     <style>
@@ -16,19 +16,40 @@ st.markdown(
     
     /* Expandir la ventana al máximo y eliminar padding */
     .block-container {
-        padding-top: 0.2rem !important;
-        padding-bottom: 0.2rem !important;
-        padding-left: 1rem !important;
-        padding-right: 1rem !important;
+        padding-top: 0.1rem !important;
+        padding-bottom: 0.1rem !important;
+        padding-left: 0.8rem !important;
+        padding-right: 0.8rem !important;
         max-width: 100% !important;
     }
     h1 {
-        font-size: 1.2rem !important;
-        margin-bottom: 0.1rem !important;
+        font-size: 1.1rem !important;
+        margin-bottom: 0.05rem !important;
     }
     h3 {
-        font-size: 0.95rem !important;
-        margin-bottom: 0.1rem !important;
+        font-size: 0.9rem !important;
+        margin-bottom: 0.05rem !important;
+    }
+    /* Estilo de tabla hipercompacta estilo Excel sin barras de desplazamiento */
+    table {
+        width: 100% !important;
+        font-size: 10.5px !important;
+        border-collapse: collapse !important;
+        table-layout: auto !important;
+    }
+    th, td {
+        padding: 2px 5px !important;
+        white-space: nowrap !important;
+    }
+    /* Primera columna de conceptos alineada a la izquierda */
+    th:first-child, td:first-child {
+        text-align: left !important;
+        padding-left: 4px !important;
+    }
+    /* FORZAR ALINEACIÓN ABSOLUTA A LA DERECHA EN TODAS LAS COLUMNAS NUMÉRICAS Y CABECERAS */
+    th:not(:first-child), td:not(:first-child) {
+        text-align: right !important;
+        padding-right: 6px !important;
     }
     </style>
 """,
@@ -592,7 +613,7 @@ def aplicar_estilos_styler(s):
     is_destacado = concepto in campos_destacados
 
     row_styles = [
-        "text-align: left !important; padding-left: 6px;"
+        "text-align: left !important; padding-left: 4px;"
         + ("font-weight: bold; background-color: #eef2f7;" if is_destacado else "")
     ]
 
@@ -633,19 +654,8 @@ def aplicar_estilos_styler(s):
 
 df_styled = df_resultado_display.style.apply(aplicar_estilos_styler, axis=None)
 
-# Usamos st.dataframe nativo que calcula automáticamente el ancho óptimo por columna en función de la información solicitada
-column_config = {
-    "Resultados": st.column_config.TextColumn("Resultados", width="medium")
-}
-for col in columnas_tabla[1:]:
-  column_config[col] = st.column_config.TextColumn(col, width="small")
-
-st.dataframe(
-    df_styled,
-    use_container_width=True,
-    hide_index=True,
-    column_config=column_config,
-)
+# Renderizado mediante st.table con ajuste fluido y sin scroll vertical
+st.table(df_styled)
 
 
 def to_excel(df_to_save):
