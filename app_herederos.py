@@ -429,7 +429,7 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         return resumen.get("R. B.", 0.0)
       return total_mb / total_ventas
 
-    # CORRECCIÓN FORZADA DE NOMBRES DE COLUMNA USANDO LAS VARIABLES CORRECTAS
+    # ASIGNACIÓN LIMPIA DE CABECERAS CON LOS AÑOS CORRECTOS
     col_actual = f"R.B. {ano}"
     col_anterior = f"R.B. {ano_ant}"
     columnas_tabla = ["Resultados", col_actual, col_anterior, "Var. pp"]
@@ -823,7 +823,7 @@ else:
         fila_disp.append(f"{val_t1:,.2f} €".replace(",", "X").replace(".", ",").replace("X", "."))
         fila_disp.append(f"{val_t2:,.2f} €".replace(",", "X").replace(".", ",").replace("X", "."))
         fila_disp.append(f"{var_eur:,.2f} €".replace(",", "X").replace(".", ",").replace("X", "."))
-        fila_disp.append(f"{var_pct:,.2f}%".replace(",", "X").replace(".", ",").replace("X", "."))
+        fila_disp.append(f"{val_pct:,.2f}%".replace(",", "X").replace(".", ",").replace("X", "."))
 
     else:
       ejes_eval = (
