@@ -4,7 +4,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS optimizado para alinear correctamente y mantener anchos naturales
+# CSS optimizado para adaptabilidad exacta al contenido de las columnas
 st.markdown(
     """
     <style>
@@ -31,31 +31,30 @@ st.markdown(
         margin-bottom: 0.1rem !important;
     }
     
-    /* Contenedor fluido con scroll horizontal automático si hay muchas columnas */
+    /* Contenedor fluido */
     div[data-testid="stTable"], div.stTable {
         width: 100% !important;
         overflow-x: auto !important;
     }
     
     table {
-        width: max-content !important;
-        min-width: 100% !important;
+        width: 100% !important;
         font-size: 11px !important;
         border-collapse: collapse !important;
         table-layout: auto !important;
     }
     th {
-        padding: 5px 12px !important;
+        padding: 5px 10px !important;
         white-space: nowrap !important;
         font-weight: bold !important;
     }
     td {
-        padding: 4px 12px !important;
+        padding: 4px 10px !important;
         white-space: nowrap !important;
     }
     th:first-child, td:first-child {
-        width: 180px !important;
-        min-width: 160px !important;
+        width: 170px !important;
+        min-width: 150px !important;
         text-align: left !important;
         padding-left: 8px !important;
         position: sticky !important;
@@ -65,8 +64,9 @@ st.markdown(
     }
     th:not(:first-child), td:not(:first-child) {
         text-align: right !important;
-        padding-right: 12px !important;
-        min-width: 90px !important;
+        padding-right: 10px !important;
+        width: 1%;
+        white-space: nowrap !important;
     }
     </style>
 """,
