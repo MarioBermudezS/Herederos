@@ -897,27 +897,24 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
         if is_destacado:
           cell_style += " font-weight: bold;"
 
-        # Coloración condicional entre tiendas
+        # Coloración condicional con sombreado de celda suave de prueba
         if es_multi_tienda and col != "Total" and max_val is not None and min_val is not None and max_val != min_val:
           if isinstance(num_val, (int, float)):
             if concepto in ["RDO. FINANCIERO", "Resultados Extraordinarios"]:
-              # En RDO. FINANCIERO y Extraordinarios: el más bajo (o más negativo) es el mejor (verde), el más alto es el peor (rojo)
               if num_val == min_val:
-                cell_style += " color: #16a34a; font-weight: bold;"
+                cell_style += " color: #16a34a; background-color: #d1fae5; font-weight: bold;" # Verde claro + texto verde
               elif num_val == max_val:
-                cell_style += " color: #dc2626; font-weight: bold;"
+                cell_style += " color: #dc2626; background-color: #fee2e2; font-weight: bold;" # Rojo claro + texto rojo
             elif concepto in conceptos_gastos:
-              # En gastos normales: menor es mejor (verde), mayor es peor (rojo)
               if num_val == min_val:
-                cell_style += " color: #16a34a; font-weight: bold;"
+                cell_style += " color: #16a34a; background-color: #d1fae5; font-weight: bold;"
               elif num_val == max_val:
-                cell_style += " color: #dc2626; font-weight: bold;"
+                cell_style += " color: #dc2626; background-color: #fee2e2; font-weight: bold;"
             else:
-              # En ingresos/márgenes: mayor es mejor (verde), menor es peor (rojo)
               if num_val == max_val:
-                cell_style += " color: #16a34a; font-weight: bold;"
+                cell_style += " color: #16a34a; background-color: #d1fae5; font-weight: bold;"
               elif num_val == min_val:
-                cell_style += " color: #dc2626; font-weight: bold;"
+                cell_style += " color: #dc2626; background-color: #fee2e2; font-weight: bold;"
 
         if col == "Var. pp" and isinstance(num_val, (int, float)):
           if num_val != 0:
