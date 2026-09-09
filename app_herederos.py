@@ -862,7 +862,6 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
 
   def aplicar_estilos_kpi(s):
     styles = []
-    # Activar colores cuando comparamos múltiples tiendas en paralelo
     es_multi_tienda = (modo_analisis == "Comparativa Multi-Tienda (Totales)" and len(tiendas) > 1 and opcion_multitienda == "Total") or \
                       (modo_analisis == "Evolución Mensual / Tienda" and len(tiendas) > 1)
 
@@ -874,7 +873,6 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
           + ("font-weight: bold; background-color: #eef2f7;" if is_destacado else "")
       ]
 
-      # Recopilar valores de las tiendas para calcular min y max de esta fila
       tiendas_valores = []
       if es_multi_tienda:
         for col_idx, col in enumerate(columnas_tabla[1:], start=1):
@@ -899,18 +897,23 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
         if is_destacado:
           cell_style += " font-weight: bold;"
 
-        # Coloración condicional: Verde para el mejor, Rojo para el peor entre tiendas
+        # Coloración condicional entre tiendas
         if es_multi_tienda and col != "Total" and max_val is not None and min_val is not None and max_val != min_val:
-          es_gasto = concepto in conceptos_gastos
           if isinstance(num_val, (int, float)):
-            if es_gasto:
-              # En gastos, el mejor es el menor (verde) y el peor es el mayor (rojo)
+            if concepto in ["RDO. FINANCIERO", "Resultados Extraordinarios"]:
+              # En RDO. FINANCIERO y Extraordinarios: el más bajo (o más negativo) es el mejor (verde), el más alto es el peor (rojo)
+              if num_val == min_val:
+                cell_style += " color: #16a34a; font-weight: bold;"
+              elif num_val == max_val:
+                cell_style += " color: #dc2626; font-weight: bold;"
+            elif concepto in conceptos_gastos:
+              # En gastos normales: menor es mejor (verde), mayor es peor (rojo)
               if num_val == min_val:
                 cell_style += " color: #16a34a; font-weight: bold;"
               elif num_val == max_val:
                 cell_style += " color: #dc2626; font-weight: bold;"
             else:
-              # En ingresos/márgenes/beneficios, el mejor es el mayor (verde) y el peor es el menor (rojo)
+              # En ingresos/márgenes: mayor es mejor (verde), menor es peor (rojo)
               if num_val == max_val:
                 cell_style += " color: #16a34a; font-weight: bold;"
               elif num_val == min_val:
