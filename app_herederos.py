@@ -317,8 +317,10 @@ def estado_columnas_js(clave: str, autoajustar_todas: bool = False) -> JsCode:
                 }} catch (e) {{}}
             }}
 
+            let hayEstadoGuardado = false;
             try {{
                 const saved = window.localStorage.getItem(key);
+                hayEstadoGuardado = !!saved;
                 if (saved && !autoajustarTodas) {{
                     params.api.applyColumnState({{
                         state: JSON.parse(saved),
@@ -326,6 +328,18 @@ def estado_columnas_js(clave: str, autoajustar_todas: bool = False) -> JsCode:
                     }});
                 }}
             }} catch (e) {{}}
+
+            // Primera vez para esta combinación de columnas: autoajuste inicial.
+            if (!hayEstadoGuardado && !autoajustarTodas) {{
+                try {{
+                    if (params.api && params.api.autoSizeAllColumns) {{
+                        params.api.autoSizeAllColumns(true);
+                    }} else if (params.columnApi && params.columnApi.autoSizeAllColumns) {{
+                        params.columnApi.autoSizeAllColumns(true);
+                    }}
+                    setTimeout(guardar, 220);
+                }} catch (e) {{}}
+            }}
 
             // Autoajuste de todas las columnas cuando se pulsa el botón.
             if (autoajustarTodas) {{
@@ -375,6 +389,22 @@ def estado_columnas_js(clave: str, autoajustar_todas: bool = False) -> JsCode:
         }}
         """
     )
+
+def es_columna_resumen(nombre_columna: str) -> bool:
+    """
+    Identifica únicamente columnas de resumen reales.
+    Ejemplos que SÍ: Total, Total Grupo, Promedio, Promedio Acumulado, Acumulado.
+    Ejemplos que NO: Total 2026, Total 2025.
+    """
+    nombre = str(nombre_columna).strip().upper()
+    return nombre in {
+        "TOTAL",
+        "TOTAL GRUPO",
+        "PROMEDIO",
+        "PROMEDIO ACUMULADO",
+        "ACUMULADO",
+    }
+
 
 def render_aggrid_table(
     df_display: pd.DataFrame,
@@ -517,11 +547,7 @@ def render_aggrid_table(
 
             # Totales, promedios y acumulados no participan en máximos/mínimos.
             col_norm = str(col).strip().upper()
-            if (
-                "TOTAL" in col_norm
-                or "PROMEDIO" in col_norm
-                or "ACUMULADO" in col_norm
-            ):
+            if es_columna_resumen(col):
                 continue
 
             valores = {}
@@ -601,11 +627,7 @@ def render_aggrid_table(
             ancho = calcular_ancho_columna(df_display, col, 74)
 
             col_norm = str(col).strip().upper()
-            es_columna_total = (
-                "TOTAL" in col_norm
-                or "PROMEDIO" in col_norm
-                or "ACUMULADO" in col_norm
-            )
+            es_columna_total = es_columna_resumen(col)
 
             # Las columnas de total/promedio/acumulado tienen sombreado propio
             # y no usan el semáforo verde/rojo comparativo.
@@ -700,13 +722,18 @@ def render_aggrid_table(
 
     altura_tabla = altura_cabecera + (len(df_display) * altura_fila)
 
+    # Cada combinación distinta de columnas tiene su propia configuración.
+    # Primera vez: autoajuste. Si se vuelve a la misma combinación: recuerda ajustes.
+    firma_columnas = "__".join(str(c) for c in df_display.columns)
+    clave_preferencias_efectiva = f"{clave_preferencias}__{firma_columnas}"
+
     boton_autoajuste = st.button(
         "↔ Autoajustar todas las columnas",
-        key=f"autoajustar_todas_{clave_preferencias}",
+        key=f"autoajustar_todas_{clave_preferencias_efectiva}",
         help="Ajusta automáticamente todas las columnas según su cabecera y contenido.",
     )
 
-    token_key = f"token_autoajuste_{clave_preferencias}"
+    token_key = f"token_autoajuste_{clave_preferencias_efectiva}"
     if token_key not in st.session_state:
         st.session_state[token_key] = 0
 
@@ -717,7 +744,7 @@ def render_aggrid_table(
 
     gb.configure_grid_options(
         onGridReady=estado_columnas_js(
-            clave_preferencias,
+            clave_preferencias_efectiva,
             autoajustar_todas=autoajustar_todas,
         )
     )
@@ -725,7 +752,7 @@ def render_aggrid_table(
     AgGrid(
         df_display,
         gridOptions=gb.build(),
-        key=f"grid_{clave_preferencias}_{st.session_state[token_key]}",
+        key=f"grid_{clave_preferencias_efectiva}_{st.session_state[token_key]}",
         update_mode=GridUpdateMode.NO_UPDATE,
         fit_columns_on_grid_load=False,
         allow_unsafe_jscode=True,
@@ -854,11 +881,7 @@ def render_aggrid_rb_horizontal(
         ancho = calcular_ancho_columna(df_display, col, 78)
 
         col_norm = str(col).strip().upper()
-        es_columna_total = (
-            "TOTAL" in col_norm
-            or "PROMEDIO" in col_norm
-            or "ACUMULADO" in col_norm
-        )
+        es_columna_total = es_columna_resumen(col)
 
         if es_columna_total:
             estilo = JsCode(
@@ -970,13 +993,16 @@ def render_aggrid_rb_horizontal(
 
     altura_tabla = altura_cabecera + (len(df_display) * altura_fila)
 
+    firma_columnas = "__".join(str(c) for c in df_display.columns)
+    clave_preferencias_efectiva = f"{clave_preferencias}__{firma_columnas}"
+
     boton_autoajuste = st.button(
         "↔ Autoajustar todas las columnas",
-        key=f"autoajustar_todas_{clave_preferencias}",
+        key=f"autoajustar_todas_{clave_preferencias_efectiva}",
         help="Ajusta automáticamente todas las columnas según su cabecera y contenido.",
     )
 
-    token_key = f"token_autoajuste_{clave_preferencias}"
+    token_key = f"token_autoajuste_{clave_preferencias_efectiva}"
     if token_key not in st.session_state:
         st.session_state[token_key] = 0
 
@@ -987,7 +1013,7 @@ def render_aggrid_rb_horizontal(
 
     gb.configure_grid_options(
         onGridReady=estado_columnas_js(
-            clave_preferencias,
+            clave_preferencias_efectiva,
             autoajustar_todas=autoajustar_todas,
         )
     )
@@ -995,7 +1021,7 @@ def render_aggrid_rb_horizontal(
     AgGrid(
         df_display,
         gridOptions=gb.build(),
-        key=f"grid_{clave_preferencias}_{st.session_state[token_key]}",
+        key=f"grid_{clave_preferencias_efectiva}_{st.session_state[token_key]}",
         update_mode=GridUpdateMode.NO_UPDATE,
         fit_columns_on_grid_load=False,
         allow_unsafe_jscode=True,
@@ -1460,9 +1486,17 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
             df_kpi_display,
             modo="auto",
             df_numericos=df_kpi_numericos,
-            resaltar_kpi_tiendas=len(tiendas) > 1,
-            columnas_comparar=tiendas if len(tiendas) > 1 else None,
-        clave_preferencias="informe_kpi",
+            resaltar_kpi_tiendas=len([
+                c for c in df_kpi_numericos.columns
+                if c != "Resultados"
+                and not es_columna_resumen(c)
+            ]) > 1,
+            columnas_comparar=[
+                c for c in df_kpi_numericos.columns
+                if c != "Resultados"
+                and not es_columna_resumen(c)
+            ],
+            clave_preferencias="informe_kpi",
         )
         descargar_excel(df_kpi_numericos, "Informe_KPI", f"Informe_KPI_Ventas_{ano}.xlsx",
                        "Descargar Informe KPI en Excel")
@@ -1511,9 +1545,17 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
             df_kpi_display,
             modo="auto",
             df_numericos=df_kpi_numericos,
-            resaltar_kpi_tiendas=len(tiendas) > 1,
-            columnas_comparar=tiendas if len(tiendas) > 1 else None,
-        clave_preferencias="informe_kpi",
+            resaltar_kpi_tiendas=len([
+                c for c in df_kpi_numericos.columns
+                if c != "Resultados"
+                and not es_columna_resumen(c)
+            ]) > 1,
+            columnas_comparar=[
+                c for c in df_kpi_numericos.columns
+                if c != "Resultados"
+                and not es_columna_resumen(c)
+            ],
+            clave_preferencias="informe_kpi",
         )
         descargar_excel(df_kpi_numericos, "Informe_KPI", f"Informe_KPI_Ventas_{ano}.xlsx",
                        "Descargar Informe KPI en Excel")
@@ -1576,9 +1618,17 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
             df_kpi_display,
             modo="auto",
             df_numericos=df_kpi_numericos,
-            resaltar_kpi_tiendas=len(tiendas) > 1,
-            columnas_comparar=tiendas if len(tiendas) > 1 else None,
-        clave_preferencias="informe_kpi",
+            resaltar_kpi_tiendas=len([
+                c for c in df_kpi_numericos.columns
+                if c != "Resultados"
+                and not es_columna_resumen(c)
+            ]) > 1,
+            columnas_comparar=[
+                c for c in df_kpi_numericos.columns
+                if c != "Resultados"
+                and not es_columna_resumen(c)
+            ],
+            clave_preferencias="informe_kpi",
         )
         descargar_excel(df_kpi_numericos, "Informe_KPI", f"Informe_KPI_Ventas_{ano}.xlsx",
                        "Descargar Informe KPI en Excel")
