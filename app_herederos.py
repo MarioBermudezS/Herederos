@@ -2420,9 +2420,6 @@ elif modulo_principal == "Análisis de Inventario y Rotación":
         .str.strip()
         .unique()
     ):
-        if tienda.upper() == "GENERAL":
-            continue
-
         valores_tienda = pd.to_numeric(
             inv_periodo.loc[
                 inv_periodo["Departamento"].astype(str).str.strip()
@@ -2535,6 +2532,110 @@ elif modulo_principal == "Análisis de Inventario y Rotación":
             "No hay datos de inventario para las tiendas y meses seleccionados."
         )
         st.stop()
+
+    # Añadir TOTAL por cada mes solicitado. Se recalcula desde las tiendas
+    # seleccionadas; no se utiliza la fila TOTAL existente en el Excel.
+    for mes in meses_sel:
+        filas_mes = [f for f in filas_excel if f["Mes"] == mes]
+        if not filas_mes:
+            continue
+
+        inventario_total = sum(
+            float(f["Inventario Final"] or 0) for f in filas_mes
+        )
+
+        ventas_validas = [
+            f for f in filas_mes if f["Venta Media 12M"] is not None
+        ]
+        coste_valido = [
+            f for f in filas_mes if f["Venta Media a Coste"] is not None
+        ]
+
+        # El total de cobertura solo es válido si todas las tiendas seleccionadas
+        # tienen cálculo completo de 12 meses.
+        calculo_total_valido = (
+            len(ventas_validas) == len(filas_mes)
+            and len(coste_valido) == len(filas_mes)
+        )
+
+        venta_media_total = (
+            sum(float(f["Venta Media 12M"]) for f in filas_mes)
+            if calculo_total_valido
+            else None
+        )
+        venta_coste_total = (
+            sum(float(f["Venta Media a Coste"]) for f in filas_mes)
+            if calculo_total_valido
+            else None
+        )
+
+        margen_total = None
+        if (
+            calculo_total_valido
+            and venta_media_total is not None
+            and abs(venta_media_total) > 1e-12
+        ):
+            margen_total = 1.0 - (venta_coste_total / venta_media_total)
+
+        meses_stock_total = None
+        if (
+            calculo_total_valido
+            and venta_coste_total is not None
+            and abs(venta_coste_total) > 1e-12
+        ):
+            meses_stock_total = inventario_total / venta_coste_total
+
+        estado_total = ""
+        if not calculo_total_valido:
+            estado_total = (
+                "Imposible calcular total: alguna tienda no dispone "
+                "de 12 meses completos"
+            )
+
+        meses_stock_total_txt = ""
+        if meses_stock_total is not None:
+            meses_stock_total_txt = (
+                f"{meses_stock_total:,.2f}"
+                .replace(",", "X")
+                .replace(".", ",")
+                .replace("X", ".")
+            )
+
+        filas_display.append(
+            {
+                "Tienda": "TOTAL",
+                "Mes": mes,
+                "Inventario Final": formato_moneda(inventario_total),
+                "Venta Media 12M": (
+                    formato_moneda(venta_media_total)
+                    if venta_media_total is not None else ""
+                ),
+                "Margen Acumulado": (
+                    formato_porcentaje(margen_total)
+                    if margen_total is not None else ""
+                ),
+                "Venta Media a Coste": (
+                    formato_moneda(venta_coste_total)
+                    if venta_coste_total is not None else ""
+                ),
+                "Meses de Stock": meses_stock_total_txt,
+                "Estado": estado_total,
+            }
+        )
+
+        filas_excel.append(
+            {
+                "Tienda": "TOTAL",
+                "Año": ano,
+                "Mes": mes,
+                "Inventario Final": inventario_total,
+                "Venta Media 12M": venta_media_total,
+                "Margen Acumulado": margen_total,
+                "Venta Media a Coste": venta_coste_total,
+                "Meses de Stock": meses_stock_total,
+                "Estado": estado_total,
+            }
+        )
 
     df_rotacion_display = pd.DataFrame(filas_display)
     df_rotacion_excel = pd.DataFrame(filas_excel)
