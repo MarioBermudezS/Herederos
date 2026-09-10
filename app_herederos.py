@@ -257,12 +257,12 @@ def calcular_resultados(df_filtrado: pd.DataFrame) -> Dict[str, float]:
 
 def render_aggrid_table(df_display: pd.DataFrame, modo: str = "auto") -> None:
     """
-    Renderiza la tabla completa en un formato compacto.
+    Renderiza la tabla completa en formato compacto.
 
     Objetivos:
     - Mostrar todas las filas sin scroll vertical interno.
-    - Ajustar las columnas al ancho disponible.
-    - Mantener en negrita las líneas principales de la cuenta de resultados.
+    - Autoajustar cada columna según su cabecera y contenido.
+    - Resaltar con negrita y sombreado las líneas principales.
     """
     if df_display.empty:
         st.info("No hay datos para mostrar con los filtros seleccionados.")
@@ -289,7 +289,10 @@ def render_aggrid_table(df_display: pd.DataFrame, modo: str = "auto") -> None:
             const valor = params.data && params.data.Resultados ? String(params.data.Resultados) : '';
             const filasNegrita = [{filas_js}];
             if (filasNegrita.includes(valor)) {{
-                return {{'fontWeight': '700'}};
+                return {{
+                    'fontWeight': '700',
+                    'backgroundColor': '#e9ecef'
+                }};
             }}
             return null;
         }}
@@ -307,26 +310,28 @@ def render_aggrid_table(df_display: pd.DataFrame, modo: str = "auto") -> None:
         autoHeight=False,
     )
 
-    # Primera columna: suficiente para los conceptos, sin ocupar espacio excesivo.
-    if len(df_display.columns) > 0:
-        first_col = df_display.columns[0]
-        gb.configure_column(
-            first_col,
-            pinned="left",
-            width=205,
-            minWidth=185,
-            maxWidth=235,
-            cellStyle={"textAlign": "left"},
-        )
-
-    # Columnas numéricas: compactas y alineadas a la derecha.
-    for col in df_display.columns[1:]:
-        gb.configure_column(
-            col,
-            minWidth=72,
-            width=105,
-            cellStyle={"textAlign": "right"},
-        )
+    # AUTOAJUSTE REAL: cada columna se dimensiona por el texto más largo
+    # entre la cabecera y los valores mostrados.
+    for i, col in enumerate(df_display.columns):
+        if i == 0:
+            ancho = calcular_ancho_columna(df_display, col, 150)
+            gb.configure_column(
+                col,
+                pinned="left",
+                width=ancho,
+                minWidth=150,
+                maxWidth=280,
+                cellStyle={"textAlign": "left"},
+            )
+        else:
+            ancho = calcular_ancho_columna(df_display, col, 80)
+            gb.configure_column(
+                col,
+                width=ancho,
+                minWidth=80,
+                maxWidth=250,
+                cellStyle={"textAlign": "right"},
+            )
 
     gb.configure_grid_options(
         domLayout="normal",
@@ -337,15 +342,14 @@ def render_aggrid_table(df_display: pd.DataFrame, modo: str = "auto") -> None:
         suppressHorizontalScroll=False,
     )
 
-    # Altura calculada para que se vean todas las filas, sin scroll vertical interno.
-    # 28 px de cabecera + 24 px por fila + pequeño margen.
+    # Altura calculada para mostrar todas las filas sin scroll vertical interno.
     altura_tabla = 34 + (len(df_display) * 24)
 
     AgGrid(
         df_display,
         gridOptions=gb.build(),
         update_mode=GridUpdateMode.NO_UPDATE,
-        fit_columns_on_grid_load=True,
+        fit_columns_on_grid_load=False,
         allow_unsafe_jscode=True,
         theme="balham",
         height=altura_tabla,
