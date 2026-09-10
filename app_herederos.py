@@ -2827,6 +2827,104 @@ elif modulo_principal == "Análisis de Inventario y Rotación":
             )
 
         df_cmp_num = pd.DataFrame(filas_cmp)
+
+        # ---------------------------------------------------------
+        # TOTAL de las tiendas seleccionadas
+        # ---------------------------------------------------------
+        # Inventario último: suma del último inventario de cada tienda.
+        inventario_ultimo_total = float(
+            pd.to_numeric(df_cmp_num["Inventario Último"], errors="coerce")
+            .fillna(0)
+            .sum()
+        )
+
+        # Inventario medio TOTAL: primero se suma el inventario por mes
+        # de las tiendas seleccionadas y después se calcula la media mensual.
+        inv_sel_total = inv_periodo_cmp[
+            inv_periodo_cmp["Departamento"].astype(str).str.strip().isin(
+                [str(x).strip() for x in tiendas_cmp_sel]
+            )
+        ].copy()
+
+        inv_mes_total = (
+            inv_sel_total.groupby("Mes", as_index=False)["Inventario"].sum()
+            if not inv_sel_total.empty
+            else pd.DataFrame(columns=["Mes", "Inventario"])
+        )
+
+        inventario_medio_total = float(
+            pd.to_numeric(inv_mes_total["Inventario"], errors="coerce")
+            .dropna()
+            .mean()
+        ) if not inv_mes_total.empty else 0.0
+
+        # Ventas y margen bruto: suma de las tiendas seleccionadas.
+        ventas_total = float(
+            pd.to_numeric(df_cmp_num["Ventas Periodo"], errors="coerce")
+            .fillna(0)
+            .sum()
+        )
+        margen_total = float(
+            pd.to_numeric(df_cmp_num["Margen Bruto"], errors="coerce")
+            .fillna(0)
+            .sum()
+        )
+
+        # Stock €/m² TOTAL:
+        # solo se incluyen en este ratio las tiendas con m² informados.
+        tiendas_con_m2 = [
+            str(x).strip()
+            for x in tiendas_cmp_sel
+            if float(m2_por_tienda.get(str(x).strip(), 0) or 0) > 0
+        ]
+        metros_total = sum(
+            float(m2_por_tienda.get(tienda, 0) or 0)
+            for tienda in tiendas_con_m2
+        )
+
+        inventario_ultimo_con_m2 = 0.0
+        for _, fila_cmp in df_cmp_num.iterrows():
+            tienda_cmp = str(fila_cmp["Tienda"]).strip()
+            if tienda_cmp in tiendas_con_m2:
+                inventario_ultimo_con_m2 += float(
+                    pd.to_numeric(fila_cmp["Inventario Último"], errors="coerce")
+                    if pd.notna(pd.to_numeric(fila_cmp["Inventario Último"], errors="coerce"))
+                    else 0.0
+                )
+
+        stock_m2_total = (
+            inventario_ultimo_con_m2 / metros_total
+            if metros_total > 0
+            else None
+        )
+
+        ventas_stock_total = (
+            ventas_total / inventario_medio_total
+            if abs(inventario_medio_total) > 1e-12
+            else None
+        )
+        margen_stock_total = (
+            margen_total / inventario_medio_total
+            if abs(inventario_medio_total) > 1e-12
+            else None
+        )
+
+        fila_total_cmp = pd.DataFrame([{
+            "Tienda": "TOTAL",
+            "Inventario Último": inventario_ultimo_total,
+            "Inventario Medio": inventario_medio_total,
+            "Ventas Periodo": ventas_total,
+            "Margen Bruto": margen_total,
+            "Stock €/m²": stock_m2_total,
+            "Ventas / Stock": ventas_stock_total,
+            "Margen / Stock": margen_stock_total,
+        }])
+
+        df_cmp_num = pd.concat(
+            [df_cmp_num, fila_total_cmp],
+            ignore_index=True,
+        )
+
         df_cmp_disp = df_cmp_num.copy()
 
         for col in ["Inventario Último", "Inventario Medio", "Ventas Periodo", "Margen Bruto", "Stock €/m²"]:
@@ -2848,8 +2946,51 @@ elif modulo_principal == "Análisis de Inventario y Rotación":
 
         st.subheader(f"Comparativa de Tiendas — {ano}")
         st.caption(
-            "Inventario, ventas, margen y eficiencia del stock para el periodo seleccionado."
+            "Inventario, ventas, margen y eficiencia del stock para el periodo seleccionado. "
+            "La fila TOTAL recalcula los ratios sobre el conjunto de tiendas seleccionadas."
         )
+
+        with st.expander("ℹ️ Qué significa cada dato", expanded=False):
+            st.markdown(
+                """
+**Tienda**  
+Establecimiento analizado. La fila **TOTAL** representa el conjunto de tiendas seleccionadas.
+
+**Inventario Último**  
+Inventario final del último mes incluido en la selección.  
+En **TOTAL** es la suma de los inventarios finales de las tiendas seleccionadas.
+
+**Inventario Medio**  
+Promedio del inventario final de los meses seleccionados.  
+En **TOTAL** se suma primero el inventario de todas las tiendas en cada mes y después se calcula la media mensual.
+
+**Ventas Periodo**  
+Ventas acumuladas durante los meses seleccionados.  
+En **TOTAL** es la suma de las ventas de las tiendas seleccionadas.
+
+**Margen Bruto**  
+Margen bruto generado durante el periodo seleccionado.  
+En **TOTAL** es la suma del margen bruto de las tiendas seleccionadas.
+
+**Stock €/m²**  
+Inventario del último mes dividido entre los metros cuadrados de la tienda.  
+Permite comparar cuánto stock mantiene cada establecimiento por unidad de superficie.  
+En **TOTAL** se calcula únicamente con las tiendas que tienen m² informados; las tiendas sin superficie válida no entran en este ratio.
+
+**Ventas / Stock**  
+Ventas del periodo divididas entre el inventario medio.  
+Ejemplo: **3,00** significa que por cada 1 € de inventario medio se han generado 3 € de ventas.  
+En general, **mayor = mejor aprovechamiento comercial del stock**.
+
+**Margen / Stock**  
+Margen bruto del periodo dividido entre el inventario medio.  
+Mide cuánto margen bruto genera cada euro mantenido de media en inventario.  
+En general, **mayor = mejor eficiencia económica del stock**.
+
+**Cómo interpretar el TOTAL**  
+Los ratios de la fila TOTAL **no se suman ni se promedian directamente**. Se vuelven a calcular utilizando los importes totales del conjunto de tiendas seleccionadas, para que el resultado sea coherente.
+                """
+            )
 
         render_aggrid_table(
             df_cmp_disp,
