@@ -2758,22 +2758,24 @@ elif modulo_principal == "Análisis de Inventario y Rotación":
             st.info("No hay inventario informado para el periodo seleccionado.")
             st.stop()
 
+        # GENERAL está disponible para seleccionarlo, pero no aparece
+        # seleccionado por defecto en la comparativa.
         tiendas_cmp = sorted(
-            tienda
-            for tienda in (
-                inv_periodo_cmp["Departamento"]
-                .dropna()
-                .astype(str)
-                .str.strip()
-                .unique()
-            )
-            if str(tienda).strip().upper() != "GENERAL"
+            inv_periodo_cmp["Departamento"]
+            .dropna()
+            .astype(str)
+            .str.strip()
+            .unique()
         )
+        tiendas_cmp_default = [
+            tienda for tienda in tiendas_cmp
+            if str(tienda).strip().upper() != "GENERAL"
+        ]
 
         tiendas_cmp_sel = st.sidebar.multiselect(
             "Selecciona tiendas",
             tiendas_cmp,
-            default=tiendas_cmp,
+            default=tiendas_cmp_default,
             key="tiendas_cmp_inventario",
         )
 
@@ -2958,7 +2960,7 @@ elif modulo_principal == "Análisis de Inventario y Rotación":
             st.markdown(
                 """
 **Tienda**  
-Establecimiento analizado. **General queda excluido de esta comparativa.** La fila **TOTAL** representa únicamente el conjunto de tiendas seleccionadas.
+Establecimiento analizado. **General no aparece seleccionado por defecto**, pero puede añadirse manualmente desde el selector de tiendas. La fila **TOTAL** representa el conjunto de tiendas que estén seleccionadas.
 
 **Inventario Último**  
 Inventario final del último mes incluido en la selección.  
