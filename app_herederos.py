@@ -1434,49 +1434,60 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
     )
     
     # Selección de tiendas/meses.
-    # En selección múltiple, GENERAL y las tiendas sin movimiento quedan
-    # desmarcadas por defecto, pero siguen disponibles para selección expresa.
-    def tiendas_kpi_con_datos() -> List[str]:
-        tiendas_default = []
+    # Para KPI por m² la lista se construye DESDE EL PRINCIPIO solo con
+    # tiendas válidas: nunca GENERAL, nunca tiendas sin movimiento y siempre
+    # con m² informado en la hoja Tiendas.
+    def tienda_kpi_tiene_movimiento(tienda: str) -> bool:
+        df_tienda = obtener_filtro_datos(df, ano, meses_sel, [tienda])
+        if df_tienda.empty:
+            return False
 
-        for tienda in departamentos_disponibles:
-            if str(tienda).strip().upper() == "GENERAL":
-                continue
+        if "Importe D" in df_tienda.columns:
+            importes = pd.to_numeric(df_tienda["Importe D"], errors="coerce").fillna(0)
+            return bool(importes.abs().sum() > 1e-12)
 
-            df_tienda = obtener_filtro_datos(df, ano, meses_sel, [tienda])
+        return False
 
-            columnas_importe = [
-                c for c in df_tienda.columns
-                if c not in {"Año", "Mes", "Departamento", "Resultados"}
-                and pd.api.types.is_numeric_dtype(df_tienda[c])
-            ]
+    tiendas_kpi_normales = [
+        t for t in departamentos_disponibles
+        if str(t).strip().upper() != "GENERAL"
+        and tienda_kpi_tiene_movimiento(t)
+    ]
 
-            if columnas_importe:
-                tiene_datos = (
-                    df_tienda[columnas_importe]
-                    .fillna(0)
-                    .abs()
-                    .to_numpy()
-                    .sum() > 1e-12
-                )
-            else:
-                tiene_datos = not df_tienda.empty
+    tiendas_kpi_m2 = [
+        t for t in tiendas_kpi_normales
+        if m2_por_tienda.get(str(t).strip(), 0) > 0
+    ]
 
-            if tiene_datos:
-                tiendas_default.append(tienda)
+    if base_kpi == "% sobre Ventas":
+        opciones_tiendas_kpi = departamentos_disponibles
+        default_tiendas_kpi = tiendas_kpi_normales
+    else:
+        opciones_tiendas_kpi = tiendas_kpi_m2
+        default_tiendas_kpi = tiendas_kpi_m2
 
-        return tiendas_default
+        if not m2_por_tienda:
+            st.error(
+                "No se ha podido leer la hoja 'Tiendas' con los metros cuadrados "
+                "en BaseDatos2026.xlsx."
+            )
+            st.stop()
 
-    tiendas_default_kpi = tiendas_kpi_con_datos()
+        if not tiendas_kpi_m2:
+            st.error(
+                "No hay tiendas válidas para el KPI por m² en el año/mes seleccionado. "
+                "Comprueba que tengan movimiento y m² informado en la hoja 'Tiendas'."
+            )
+            st.stop()
 
     if modo_analisis == "Comparativa Multi-Tienda (Totales)":
         tiendas = st.sidebar.multiselect(
             "Selecciona tiendas a comparar",
-            departamentos_disponibles,
-            default=tiendas_default_kpi,
-            help=(
-                "GENERAL y las tiendas sin datos se excluyen por defecto. "
-                "Puedes seleccionarlas expresamente si quieres incluirlas."
+            opciones_tiendas_kpi,
+            default=(
+                default_tiendas_kpi
+                if base_kpi != "% sobre Ventas"
+                else default_tiendas_kpi[:2]
             ),
         )
     else:
@@ -1485,39 +1496,17 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
         )
 
         if tipo_consulta == "Una tienda":
-            # Selección expresa: aquí se ofrecen todas las tiendas.
             tienda_sel = st.sidebar.selectbox(
                 "Selecciona tienda",
-                departamentos_disponibles,
+                opciones_tiendas_kpi,
             )
             tiendas = [tienda_sel] if tienda_sel else []
         else:
             tiendas = st.sidebar.multiselect(
                 "Selecciona tiendas",
-                departamentos_disponibles,
-                default=tiendas_default_kpi,
-                help=(
-                    "GENERAL y las tiendas sin datos se excluyen por defecto. "
-                    "Puedes seleccionarlas expresamente si quieres incluirlas."
-                ),
+                opciones_tiendas_kpi,
+                default=default_tiendas_kpi,
             )
-
-    if base_kpi != "% sobre Ventas":
-        # En KPI por m² GENERAL y tiendas sin movimiento se excluyen SIEMPRE.
-        tiendas_filtradas = []
-        for tienda in tiendas:
-            if str(tienda).strip().upper() == "GENERAL":
-                continue
-            df_tienda_chk = obtener_filtro_datos(df, ano, meses_sel, [tienda])
-            if "Importe D" in df_tienda_chk.columns:
-                suma_mov = pd.to_numeric(
-                    df_tienda_chk["Importe D"], errors="coerce"
-                ).fillna(0).abs().sum()
-            else:
-                suma_mov = 0
-            if suma_mov > 1e-12 and m2_por_tienda.get(str(tienda).strip(), 0) > 0:
-                tiendas_filtradas.append(tienda)
-        tiendas = tiendas_filtradas
 
     if not tiendas or not meses_sel:
         st.warning("Selecciona al menos una tienda y un mes.")
