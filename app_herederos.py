@@ -1949,7 +1949,7 @@ else:
     if modo_analisis == "Comparativa Multi-Tienda (Totales)":
         tiendas = st.sidebar.multiselect(
             "Selecciona tiendas a comparar",
-            departamentos_disponibles,
+            departamentos_sin_general,
             default=departamentos_sin_general[:2]
             if len(departamentos_sin_general) >= 2
             else departamentos_sin_general,
@@ -1964,7 +1964,7 @@ else:
         else:
             tiendas = st.sidebar.multiselect(
                 "Selecciona tiendas",
-                departamentos_disponibles,
+                departamentos_sin_general,
                 default=departamentos_sin_general,
             )
     
