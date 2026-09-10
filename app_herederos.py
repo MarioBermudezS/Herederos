@@ -156,6 +156,24 @@ def load_data() -> pd.DataFrame:
 
     return df
 
+@st.cache_data
+def load_tiendas_m2() -> Dict[str, float]:
+    """Lee los metros cuadrados de la hoja Tiendas del mismo Excel."""
+    try:
+        t = pd.read_excel("BaseDatos2026.xlsx", sheet_name="Tiendas")
+    except Exception:
+        return {}
+    if "Departamento" not in t.columns or "m2" not in t.columns:
+        return {}
+    t["Departamento"] = t["Departamento"].astype("string").str.strip()
+    t["m2"] = pd.to_numeric(t["m2"], errors="coerce")
+    return {
+        str(r["Departamento"]).strip(): float(r["m2"])
+        for _, r in t.iterrows()
+        if pd.notna(r["Departamento"]) and pd.notna(r["m2"]) and float(r["m2"]) > 0
+    }
+
+
 def obtener_filtro_datos(
     df: pd.DataFrame, 
     ano: int, 
@@ -1400,6 +1418,12 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
 # =====================================================================
 
 elif modulo_principal == "Informe KPI (% sobre Ventas)":
+    base_kpi = st.sidebar.radio(
+        "Base del KPI",
+        ["% sobre Ventas", "€/m² de tienda", "Comparar ambos"],
+    )
+    m2_por_tienda = load_tiendas_m2()
+
     modo_analisis = st.sidebar.radio(
         "Tipo de Análisis KPI",
         [
@@ -1477,6 +1501,23 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
                     "Puedes seleccionarlas expresamente si quieres incluirlas."
                 ),
             )
+
+    if base_kpi != "% sobre Ventas":
+        # En KPI por m² GENERAL y tiendas sin movimiento se excluyen SIEMPRE.
+        tiendas_filtradas = []
+        for tienda in tiendas:
+            if str(tienda).strip().upper() == "GENERAL":
+                continue
+            df_tienda_chk = obtener_filtro_datos(df, ano, meses_sel, [tienda])
+            if "Importe D" in df_tienda_chk.columns:
+                suma_mov = pd.to_numeric(
+                    df_tienda_chk["Importe D"], errors="coerce"
+                ).fillna(0).abs().sum()
+            else:
+                suma_mov = 0
+            if suma_mov > 1e-12 and m2_por_tienda.get(str(tienda).strip(), 0) > 0:
+                tiendas_filtradas.append(tienda)
+        tiendas = tiendas_filtradas
 
     if not tiendas or not meses_sel:
         st.warning("Selecciona al menos una tienda y un mes.")
@@ -1595,6 +1636,54 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
         df_kpi_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
         df_kpi_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
         
+        # Transformación opcional del KPI a €/m².
+        if base_kpi != "% sobre Ventas":
+            if modo_analisis == "Comparativa Multi-Tienda (Totales)" or (
+                modo_analisis == "Evolución Mensual / Tienda" and len(tiendas) > 1
+            ):
+                columnas_originales = [
+                    c for c in df_kpi_numericos.columns
+                    if c != "Resultados" and not es_columna_resumen(c)
+                ]
+                for c in columnas_originales:
+                    metros = m2_por_tienda.get(str(c).strip(), 0)
+                    if metros > 0 and c in datos_fuente:
+                        res_c = datos_fuente[c]
+                        for idx, concepto in enumerate(df_kpi_numericos["Resultados"]):
+                            if concepto != "R. B.":
+                                valor_m2 = res_c.get(concepto, 0.0) / metros
+                                if base_kpi == "€/m² de tienda":
+                                    df_kpi_numericos.at[idx, c] = valor_m2
+                                    df_kpi_display.at[idx, c] = formato_moneda(valor_m2)
+
+                if base_kpi == "Comparar ambos":
+                    disp = df_kpi_display[["Resultados"]].copy()
+                    nums = df_kpi_numericos[["Resultados"]].copy()
+                    # Recuperar porcentajes desde datos_fuente y añadir ambas medidas.
+                    for c in columnas_originales:
+                        if c not in datos_fuente:
+                            continue
+                        res_c = datos_fuente[c]
+                        ventas_c = res_c.get("Ventas", 0.0)
+                        metros = m2_por_tienda.get(str(c).strip(), 0)
+                        pct_vals, pct_disp, m2_vals, m2_disp = [], [], [], []
+                        for concepto in df_kpi_numericos["Resultados"]:
+                            valor = res_c.get(concepto, 0.0)
+                            pct = valor if concepto == "R. B." else (
+                                valor / ventas_c if ventas_c else 0.0
+                            )
+                            vm2 = 0.0 if concepto == "R. B." else (
+                                valor / metros if metros else 0.0
+                            )
+                            pct_vals.append(pct); pct_disp.append(formato_porcentaje(pct))
+                            m2_vals.append(vm2)
+                            m2_disp.append(formato_porcentaje(pct) if concepto == "R. B." else formato_moneda(vm2))
+                        nums[f"{c} %"] = pct_vals
+                        disp[f"{c} %"] = pct_disp
+                        nums[f"{c} €/m²"] = m2_vals
+                        disp[f"{c} €/m²"] = m2_disp
+                    df_kpi_display, df_kpi_numericos = disp, nums
+
         render_aggrid_table(
             df_kpi_display,
             modo="auto",
@@ -1668,6 +1757,54 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
         df_kpi_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
         df_kpi_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
         
+        # Transformación opcional del KPI a €/m².
+        if base_kpi != "% sobre Ventas":
+            if modo_analisis == "Comparativa Multi-Tienda (Totales)" or (
+                modo_analisis == "Evolución Mensual / Tienda" and len(tiendas) > 1
+            ):
+                columnas_originales = [
+                    c for c in df_kpi_numericos.columns
+                    if c != "Resultados" and not es_columna_resumen(c)
+                ]
+                for c in columnas_originales:
+                    metros = m2_por_tienda.get(str(c).strip(), 0)
+                    if metros > 0 and c in datos_fuente:
+                        res_c = datos_fuente[c]
+                        for idx, concepto in enumerate(df_kpi_numericos["Resultados"]):
+                            if concepto != "R. B.":
+                                valor_m2 = res_c.get(concepto, 0.0) / metros
+                                if base_kpi == "€/m² de tienda":
+                                    df_kpi_numericos.at[idx, c] = valor_m2
+                                    df_kpi_display.at[idx, c] = formato_moneda(valor_m2)
+
+                if base_kpi == "Comparar ambos":
+                    disp = df_kpi_display[["Resultados"]].copy()
+                    nums = df_kpi_numericos[["Resultados"]].copy()
+                    # Recuperar porcentajes desde datos_fuente y añadir ambas medidas.
+                    for c in columnas_originales:
+                        if c not in datos_fuente:
+                            continue
+                        res_c = datos_fuente[c]
+                        ventas_c = res_c.get("Ventas", 0.0)
+                        metros = m2_por_tienda.get(str(c).strip(), 0)
+                        pct_vals, pct_disp, m2_vals, m2_disp = [], [], [], []
+                        for concepto in df_kpi_numericos["Resultados"]:
+                            valor = res_c.get(concepto, 0.0)
+                            pct = valor if concepto == "R. B." else (
+                                valor / ventas_c if ventas_c else 0.0
+                            )
+                            vm2 = 0.0 if concepto == "R. B." else (
+                                valor / metros if metros else 0.0
+                            )
+                            pct_vals.append(pct); pct_disp.append(formato_porcentaje(pct))
+                            m2_vals.append(vm2)
+                            m2_disp.append(formato_porcentaje(pct) if concepto == "R. B." else formato_moneda(vm2))
+                        nums[f"{c} %"] = pct_vals
+                        disp[f"{c} %"] = pct_disp
+                        nums[f"{c} €/m²"] = m2_vals
+                        disp[f"{c} €/m²"] = m2_disp
+                    df_kpi_display, df_kpi_numericos = disp, nums
+
         render_aggrid_table(
             df_kpi_display,
             modo="auto",
