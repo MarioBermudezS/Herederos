@@ -2987,6 +2987,12 @@ Margen bruto del periodo dividido entre el inventario medio.
 Mide cuánto margen bruto genera cada euro mantenido de media en inventario.  
 En general, **mayor = mejor eficiencia económica del stock**.
 
+### 🟢 Mejor / 🟠 Peor
+
+En cada columna, el **mejor valor válido entre las tiendas seleccionadas aparece sombreado en verde** y el **peor en naranja**. Los valores **en blanco, sin dato o iguales a cero** quedan fuera de la comparación. La fila **TOTAL** tampoco participa en el semáforo.
+
+En **Ventas Periodo, Margen Bruto, Ventas / Stock y Margen / Stock**, un valor mayor se considera mejor dentro de esta comparación. En las columnas de inventario y Stock €/m², el color identifica simplemente el **valor más alto y el más bajo**; no significa necesariamente que tener más o menos inventario sea bueno o malo por sí mismo.
+
 **Cómo interpretar el TOTAL**  
 Los ratios de la fila TOTAL **no se suman ni se promedian directamente**. Se vuelven a calcular utilizando los importes totales del conjunto de tiendas seleccionadas, para que el resultado sea coherente.
                 """
@@ -2995,6 +3001,17 @@ Los ratios de la fila TOTAL **no se suman ni se promedian directamente**. Se vue
         render_aggrid_table(
             df_cmp_disp,
             modo="auto",
+            df_numericos=df_cmp_num,
+            resaltar_extremos_filas=True,
+            columnas_extremos=[
+                "Inventario Último",
+                "Inventario Medio",
+                "Ventas Periodo",
+                "Margen Bruto",
+                "Stock €/m²",
+                "Ventas / Stock",
+                "Margen / Stock",
+            ],
             altura_fila=32,
             altura_cabecera=38,
             clave_preferencias="comparativa_inventario",
