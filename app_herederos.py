@@ -3004,6 +3004,25 @@ Los ratios de la fila TOTAL **no se suman ni se promedian directamente**. Se vue
                 """
             )
 
+        render_aggrid_table(
+            df_cmp_disp,
+            modo="auto",
+            df_numericos=df_cmp_num,
+            resaltar_extremos_filas=True,
+            columnas_extremos=[
+                "Inventario Último",
+                "Inventario Medio",
+                "Ventas Periodo",
+                "Margen Bruto",
+                "Stock €/m²",
+                "Ventas / Stock",
+                "Margen / Stock",
+            ],
+            altura_fila=32,
+            altura_cabecera=38,
+            clave_preferencias="comparativa_inventario",
+        )
+
         # Gráfico: Margen / Stock por tienda
         df_graf_cmp = df_cmp_num[
             (df_cmp_num["Tienda"].astype(str).str.strip().str.upper() != "TOTAL")
@@ -3026,25 +3045,6 @@ Los ratios de la fila TOTAL **no se suman ni se promedian directamente**. Se vue
                 df_graf_cmp.set_index("Tienda")["Margen / Stock"],
                 use_container_width=True,
             )
-
-        render_aggrid_table(
-            df_cmp_disp,
-            modo="auto",
-            df_numericos=df_cmp_num,
-            resaltar_extremos_filas=True,
-            columnas_extremos=[
-                "Inventario Último",
-                "Inventario Medio",
-                "Ventas Periodo",
-                "Margen Bruto",
-                "Stock €/m²",
-                "Ventas / Stock",
-                "Margen / Stock",
-            ],
-            altura_fila=32,
-            altura_cabecera=38,
-            clave_preferencias="comparativa_inventario",
-        )
 
         descargar_excel(
             df_cmp_num,
@@ -3639,6 +3639,14 @@ Cuanto mayor sea el número del ranking, menor es el margen generado por euro de
         "el margen acumulado oficial del ERP de la hoja MargenesTotalesAcumulados."
     )
 
+    render_aggrid_table(
+        df_rotacion_display,
+        modo="auto",
+        altura_fila=32,
+        altura_cabecera=38,
+        clave_preferencias="inventario_rotacion",
+    )
+
     # Gráfico: Meses de Stock por tienda del último mes seleccionado.
     df_graf_rot = df_rotacion_excel.copy()
     if not df_graf_rot.empty:
@@ -3672,14 +3680,6 @@ Cuanto mayor sea el número del ranking, menor es el margen generado por euro de
                 df_graf_rot.set_index("Tienda")["Meses de Stock"],
                 use_container_width=True,
             )
-
-    render_aggrid_table(
-        df_rotacion_display,
-        modo="auto",
-        altura_fila=32,
-        altura_cabecera=38,
-        clave_preferencias="inventario_rotacion",
-    )
 
     descargar_excel(
         df_rotacion_excel,
