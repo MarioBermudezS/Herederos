@@ -2759,11 +2759,15 @@ elif modulo_principal == "Análisis de Inventario y Rotación":
             st.stop()
 
         tiendas_cmp = sorted(
-            inv_periodo_cmp["Departamento"]
-            .dropna()
-            .astype(str)
-            .str.strip()
-            .unique()
+            tienda
+            for tienda in (
+                inv_periodo_cmp["Departamento"]
+                .dropna()
+                .astype(str)
+                .str.strip()
+                .unique()
+            )
+            if str(tienda).strip().upper() != "GENERAL"
         )
 
         tiendas_cmp_sel = st.sidebar.multiselect(
@@ -2954,7 +2958,7 @@ elif modulo_principal == "Análisis de Inventario y Rotación":
             st.markdown(
                 """
 **Tienda**  
-Establecimiento analizado. La fila **TOTAL** representa el conjunto de tiendas seleccionadas.
+Establecimiento analizado. **General queda excluido de esta comparativa.** La fila **TOTAL** representa únicamente el conjunto de tiendas seleccionadas.
 
 **Inventario Último**  
 Inventario final del último mes incluido en la selección.  
