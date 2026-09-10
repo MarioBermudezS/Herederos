@@ -5,7 +5,7 @@ from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS limpio para aprovechar el ancho de pantalla
+# CSS para ancho 100% real y limpieza visual
 st.markdown(
     """
     <style>
@@ -17,8 +17,8 @@ st.markdown(
     .block-container {
         padding-top: 1rem !important;
         padding-bottom: 1rem !important;
-        padding-left: 1.5rem !important;
-        padding-right: 1.5rem !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
         max-width: 100% !important;
     }
     </style>
@@ -86,7 +86,7 @@ meses_orden = [
 ]
 meses_excel = (
     df["Mes"].dropna().unique().tolist() if "Mes" in df.columns else ["Enero"]
-)
+]
 meses_disponibles = [m for m in meses_orden if m in meses_excel]
 if not meses_disponibles:
   meses_disponibles = meses_excel
@@ -108,6 +108,7 @@ campos_destacados = [
     "TOTAL GRUPO",
 ]
 
+# JsCode mejorado con soporte total para sombreados de KPIs y Resultados negativos/positivos
 js_string = """
 function(params) {
     var rowNode = params.node;
@@ -137,7 +138,8 @@ function(params) {
     }
 
     if (typeof val === 'string') {
-        if (field === "Var. pp" || field === "Var. %" || field === "Var. €") {
+        var isVarCol = field === "Var. pp" || field === "Var. %" || field === "Var. €";
+        if (isVarCol) {
             if (!val.includes('-') && val !== '-' && val !== '0,00%' && val !== '0,00 pp' && val !== '0,00 €') {
                 style['color'] = '#16a34a';
                 style['backgroundColor'] = '#dcfce7';
@@ -147,10 +149,13 @@ function(params) {
                 style['backgroundColor'] = '#fee2e2';
                 style['fontWeight'] = 'bold';
             }
-        } else if (val.includes('-') && !val.includes('%') && !val.includes('pp')) {
-            style['color'] = '#dc2626';
-            style['backgroundColor'] = '#fee2e2';
-            style['fontWeight'] = 'bold';
+        } else {
+            // Para columnas normales (incluyendo KPIs negativos)
+            if (val.includes('-')) {
+                style['color'] = '#dc2626';
+                style['backgroundColor'] = '#fee2e2';
+                style['fontWeight'] = 'bold';
+            }
         }
     }
 
@@ -177,22 +182,26 @@ def render_tabla_aggrid(df_display):
     gb.configure_column(
         first_col,
         pinned="left",
-        width=220,
-        minWidth=180,
+        width=240,
+        minWidth=200,
+        flex=2,
     )
 
   for col in df_display.columns[1:]:
-    gb.configure_column(col, width=120, minWidth=100)
+    gb.configure_column(
+        col, width=130, minWidth=110, flex=1, resizable=True
+    )
 
   gb.configure_grid_options(
       suppressRowClickSelection=True,
+      domLayout="normal",
   )
   gridOptions = gb.build()
 
   AgGrid(
       df_display,
       gridOptions=gridOptions,
-      height=520,
+      height=540,
       update_mode=GridUpdateMode.NO_UPDATE,
       fit_columns_on_grid_load=True,
       allow_unsafe_jscode=True,
