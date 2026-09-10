@@ -557,6 +557,194 @@ def render_aggrid_table(
         },
     )
 
+def render_aggrid_rb_horizontal(
+    df_display: pd.DataFrame,
+    df_numericos: pd.DataFrame,
+    tiendas: List[str],
+    altura_fila: int = 36,
+    altura_cabecera: int = 38,
+) -> None:
+    """
+    Renderiza el análisis R.B. con meses en filas y tiendas en columnas.
+    En cada mes:
+      - R.B. más alto = verde
+      - R.B. más bajo = rojo
+    La columna TOTAL GRUPO no participa en la comparación.
+    """
+    if df_display.empty:
+        st.info("No hay datos para mostrar con los filtros seleccionados.")
+        return
+
+    verdes_por_columna = {t: set() for t in tiendas if t in df_display.columns}
+    rojos_por_columna = {t: set() for t in tiendas if t in df_display.columns}
+
+    for idx, fila in df_numericos.iterrows():
+        etiqueta = str(fila["Mes"])
+        valores = {}
+
+        for tienda in tiendas:
+            if tienda not in df_numericos.columns:
+                continue
+            try:
+                valor = float(fila[tienda])
+                if pd.notna(valor):
+                    valores[tienda] = valor
+            except (TypeError, ValueError):
+                pass
+
+        if len(valores) < 2:
+            continue
+
+        minimo = min(valores.values())
+        maximo = max(valores.values())
+
+        if minimo == maximo:
+            continue
+
+        for tienda, valor in valores.items():
+            if valor == maximo:
+                verdes_por_columna[tienda].add(etiqueta)
+            if valor == minimo:
+                rojos_por_columna[tienda].add(etiqueta)
+
+    gb = GridOptionsBuilder.from_dataframe(df_display)
+    gb.configure_default_column(
+        resizable=True,
+        filterable=False,
+        sortable=False,
+        editable=False,
+        suppressMenu=True,
+        wrapText=False,
+        autoHeight=False,
+    )
+
+    for i, col in enumerate(df_display.columns):
+        if col == "Mes":
+            ancho = calcular_ancho_columna(df_display, col, 95)
+            gb.configure_column(
+                col,
+                pinned="left",
+                width=ancho,
+                minWidth=95,
+                maxWidth=150,
+                cellStyle={"textAlign": "left", "fontWeight": "600"},
+            )
+            continue
+
+        ancho = calcular_ancho_columna(df_display, col, 78)
+
+        if col in tiendas:
+            verdes = ",".join(repr(x) for x in sorted(verdes_por_columna.get(col, set())))
+            rojos = ",".join(repr(x) for x in sorted(rojos_por_columna.get(col, set())))
+
+            estilo = JsCode(
+                f"""
+                function(params) {{
+                    const mes = params.data && params.data.Mes ? String(params.data.Mes) : '';
+                    const verdes = [{verdes}];
+                    const rojos = [{rojos}];
+
+                    let estilo = {{'textAlign': 'right'}};
+
+                    if (verdes.includes(mes)) {{
+                        estilo['backgroundColor'] = '#d9ead3';
+                        estilo['fontWeight'] = '700';
+                    }} else if (rojos.includes(mes)) {{
+                        estilo['backgroundColor'] = '#f4cccc';
+                        estilo['fontWeight'] = '700';
+                    }}
+
+                    const texto = params.value === null || params.value === undefined
+                        ? ''
+                        : String(params.value).trim();
+
+                    if (texto.startsWith('-') || /^\\(.*\\)$/.test(texto)) {{
+                        estilo['color'] = '#d00000';
+                    }}
+
+                    return estilo;
+                }}
+                """
+            )
+        else:
+            estilo = JsCode(
+                r"""
+                function(params) {
+                    const texto = params.value === null || params.value === undefined
+                        ? ''
+                        : String(params.value).trim();
+
+                    let estilo = {'textAlign': 'right'};
+
+                    if (texto.startsWith('-') || /^\(.*\)$/.test(texto)) {
+                        estilo['color'] = '#d00000';
+                    }
+
+                    return estilo;
+                }
+                """
+            )
+
+        gb.configure_column(
+            col,
+            width=ancho,
+            minWidth=78,
+            maxWidth=180,
+            cellStyle=estilo,
+        )
+
+    # Sombrear la fila ACUMULADO
+    get_row_style = JsCode(
+        """
+        function(params) {
+            const mes = params.data && params.data.Mes ? String(params.data.Mes) : '';
+            if (mes === 'ACUMULADO') {
+                return {
+                    'fontWeight': '700',
+                    'backgroundColor': '#e9ecef'
+                };
+            }
+            return null;
+        }
+        """
+    )
+
+    gb.configure_grid_options(
+        domLayout="normal",
+        suppressRowClickSelection=True,
+        rowHeight=altura_fila,
+        headerHeight=altura_cabecera,
+        getRowStyle=get_row_style,
+        suppressHorizontalScroll=False,
+    )
+
+    altura_tabla = altura_cabecera + (len(df_display) * altura_fila)
+
+    AgGrid(
+        df_display,
+        gridOptions=gb.build(),
+        update_mode=GridUpdateMode.NO_UPDATE,
+        fit_columns_on_grid_load=False,
+        allow_unsafe_jscode=True,
+        theme="balham",
+        height=altura_tabla,
+        custom_css={
+            ".ag-cell": {
+                "font-size": "13px",
+                "line-height": "31px",
+                "padding-left": "5px",
+                "padding-right": "5px",
+            },
+            ".ag-header-cell": {
+                "font-size": "13px",
+                "font-weight": "600",
+                "padding-left": "5px",
+                "padding-right": "5px",
+            },
+        },
+    )
+
+
 def descargar_excel(df: pd.DataFrame, nombre_hoja: str, nombre_archivo: str, etiqueta: str) -> None:
     """Genera y descarga archivo Excel."""
     output = io.BytesIO()
@@ -652,68 +840,74 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
     # =====================================================================
     if tipo_analisis_rb == "Evolución Mensual por Tienda":
         st.subheader(f"Análisis R.B. - Evolución Mensual por Tienda ({ano})")
-        
-        columnas_tabla = ["Resultados"] + meses_sel
-        if len(meses_sel) > 1:
-            columnas_tabla.append("Promedio Acumulado")
-        
+
+        # Vista transpuesta:
+        # Primera columna = meses
+        # Columnas siguientes = tiendas
+        columnas_tabla = ["Mes"] + tiendas_rb
+        if len(tiendas_rb) > 1:
+            columnas_tabla.append("TOTAL GRUPO")
+
         filas_display = []
         filas_nums = []
-        
-        for tienda in tiendas_rb:
-            fila_d = [tienda]
-            fila_n = [tienda]
-            
-            for mes in meses_sel:
+
+        for mes in meses_sel:
+            fila_d = [mes]
+            fila_n = [mes]
+
+            for tienda in tiendas_rb:
                 df_filtrado = obtener_filtro_datos(df, ano, [mes], [tienda])
                 val_rb = calcular_rb_puro(df_filtrado)
                 fila_n.append(val_rb)
                 fila_d.append(formato_porcentaje(val_rb))
-            
-            if len(meses_sel) > 1:
+
+            if len(tiendas_rb) > 1:
+                df_total = obtener_filtro_datos(df, ano, [mes], tiendas_rb)
+                val_total = calcular_rb_puro(df_total)
+                fila_n.append(val_total)
+                fila_d.append(formato_porcentaje(val_total))
+
+            filas_display.append(fila_d)
+            filas_nums.append(fila_n)
+
+        # Fila de acumulado para los meses seleccionados
+        if len(meses_sel) > 1:
+            fila_d = ["ACUMULADO"]
+            fila_n = ["ACUMULADO"]
+
+            for tienda in tiendas_rb:
                 df_acum = obtener_filtro_datos(df, ano, meses_sel, [tienda])
                 val_acum = calcular_rb_puro(df_acum)
                 fila_n.append(val_acum)
                 fila_d.append(formato_porcentaje(val_acum))
-            
+
+            if len(tiendas_rb) > 1:
+                df_acum_total = obtener_filtro_datos(df, ano, meses_sel, tiendas_rb)
+                val_acum_total = calcular_rb_puro(df_acum_total)
+                fila_n.append(val_acum_total)
+                fila_d.append(formato_porcentaje(val_acum_total))
+
             filas_display.append(fila_d)
             filas_nums.append(fila_n)
-        
-        # TOTAL GRUPO
-        if len(tiendas_rb) > 1:
-            fila_d_tot = ["TOTAL GRUPO"]
-            fila_n_tot = ["TOTAL GRUPO"]
-            
-            for mes in meses_sel:
-                df_filtrado = obtener_filtro_datos(df, ano, [mes], tiendas_rb)
-                val_m = calcular_rb_puro(df_filtrado)
-                fila_n_tot.append(val_m)
-                fila_d_tot.append(formato_porcentaje(val_m))
-            
-            if len(meses_sel) > 1:
-                df_acum = obtener_filtro_datos(df, ano, meses_sel, tiendas_rb)
-                val_tot_ac = calcular_rb_puro(df_acum)
-                fila_n_tot.append(val_tot_ac)
-                fila_d_tot.append(formato_porcentaje(val_tot_ac))
-            
-            filas_display.append(fila_d_tot)
-            filas_nums.append(fila_n_tot)
-        
+
         df_res_d = pd.DataFrame(filas_display, columns=columnas_tabla)
         df_res_n = pd.DataFrame(filas_nums, columns=columnas_tabla)
-        
-        render_aggrid_table(
+
+        render_aggrid_rb_horizontal(
             df_res_d,
-            modo="auto",
-            df_numericos=df_res_n,
-            resaltar_rb_tiendas=len(tiendas_rb) > 1,
-            columnas_comparar=tiendas_rb if len(tiendas_rb) > 1 else None,
+            df_res_n,
+            tiendas_rb,
             altura_fila=36,
             altura_cabecera=38,
         )
-        descargar_excel(df_res_n, "Analisis_RB_Mensual", f"Analisis_RB_Mensual_{ano}.xlsx", 
-                       "Descargar Análisis R.B. en Excel")
-    
+
+        descargar_excel(
+            df_res_n,
+            "Analisis_RB_Mensual",
+            f"Analisis_RB_Mensual_{ano}.xlsx",
+            "Descargar Análisis R.B. en Excel",
+        )
+
     # =====================================================================
     # VISTA ACUMULADA POR TIENDA
     # =====================================================================
