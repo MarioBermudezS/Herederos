@@ -258,20 +258,28 @@ def calcular_resultados(df_filtrado: pd.DataFrame) -> Dict[str, float]:
 # FUNCIONES DE RENDERIZACIÓN
 # =====================================================================
 
-def render_aggrid_table(df_display: pd.DataFrame, modo: str = "auto") -> None:
+def render_aggrid_table(
+    df_display: pd.DataFrame,
+    modo: str = "auto",
+    df_numericos: pd.DataFrame = None,
+    resaltar_kpi_tiendas: bool = False,
+    columnas_comparar: List[str] = None,
+) -> None:
     """
-    Renderiza la tabla completa en formato compacto.
+    Renderiza la tabla completa.
 
-    Objetivos:
-    - Mostrar todas las filas sin scroll vertical interno.
-    - Autoajustar cada columna según su cabecera y contenido.
-    - Resaltar con negrita y sombreado las líneas principales.
+    - Muestra todas las filas sin scroll vertical interno.
+    - Autoajusta cada columna según cabecera y contenido.
+    - Resalta con negrita y sombreado las líneas principales.
+    - Opcionalmente, en Informe KPI multi-tienda:
+        * Gastos/ratios: menor % verde y mayor % rojo.
+        * Ingresos: mayor % verde y menor % rojo.
+      La columna Total queda fuera de la comparación.
     """
     if df_display.empty:
         st.info("No hay datos para mostrar con los filtros seleccionados.")
         return
 
-    # Líneas contables que deben destacarse en toda la fila.
     filas_negrita = {
         "MARGEN BRUTO",
         "R. B.",
@@ -302,6 +310,70 @@ def render_aggrid_table(df_display: pd.DataFrame, modo: str = "auto") -> None:
         """
     )
 
+    # Filas consideradas "ingresos": en ellas el mayor porcentaje es mejor.
+    conceptos_ingresos = {
+        "Ventas",
+        "Otros Ingresos",
+        "Ingresos Operativos",
+        "Ingresos Financieros",
+    }
+
+    # Para cada columna/tienda, preparar qué filas deben ir verde o rojo.
+    verdes_por_columna = {}
+    rojos_por_columna = {}
+
+    if (
+        resaltar_kpi_tiendas
+        and df_numericos is not None
+        and columnas_comparar
+        and len(columnas_comparar) > 1
+    ):
+        columnas_validas = [
+            c for c in columnas_comparar
+            if c in df_numericos.columns and c in df_display.columns
+        ]
+
+        if len(columnas_validas) > 1:
+            for c in columnas_validas:
+                verdes_por_columna[c] = set()
+                rojos_por_columna[c] = set()
+
+            for _, fila in df_numericos.iterrows():
+                concepto = str(fila["Resultados"])
+                valores = {}
+
+                for c in columnas_validas:
+                    try:
+                        valor = float(fila[c])
+                        if pd.notna(valor):
+                            valores[c] = valor
+                    except (TypeError, ValueError):
+                        pass
+
+                if len(valores) < 2:
+                    continue
+
+                minimo = min(valores.values())
+                maximo = max(valores.values())
+
+                # Si todas las tiendas tienen el mismo valor no se colorea ninguna.
+                if minimo == maximo:
+                    continue
+
+                es_ingreso = concepto in conceptos_ingresos
+
+                for c, valor in valores.items():
+                    if es_ingreso:
+                        if valor == maximo:
+                            verdes_por_columna[c].add(concepto)
+                        if valor == minimo:
+                            rojos_por_columna[c].add(concepto)
+                    else:
+                        if valor == minimo:
+                            verdes_por_columna[c].add(concepto)
+                        if valor == maximo:
+                            rojos_por_columna[c].add(concepto)
+
     gb = GridOptionsBuilder.from_dataframe(df_display)
     gb.configure_default_column(
         resizable=True,
@@ -313,8 +385,7 @@ def render_aggrid_table(df_display: pd.DataFrame, modo: str = "auto") -> None:
         autoHeight=False,
     )
 
-    # AUTOAJUSTE COMPACTO: ancho según cabecera y contenido, con menos padding.
-    # En las columnas numéricas, los valores negativos se muestran en rojo.
+    # Estilo numérico normal: negativos en rojo.
     estilo_numerico_js = JsCode(
         r"""
         function(params) {
@@ -350,12 +421,55 @@ def render_aggrid_table(df_display: pd.DataFrame, modo: str = "auto") -> None:
             )
         else:
             ancho = calcular_ancho_columna(df_display, col, 74)
+
+            # Si esta columna participa en la comparación KPI, añadir sombreado.
+            if col in verdes_por_columna or col in rojos_por_columna:
+                filas_verdes = ",".join(repr(x) for x in sorted(verdes_por_columna.get(col, set())))
+                filas_rojas = ",".join(repr(x) for x in sorted(rojos_por_columna.get(col, set())))
+
+                estilo_kpi_js = JsCode(
+                    f"""
+                    function(params) {{
+                        const concepto = params.data && params.data.Resultados
+                            ? String(params.data.Resultados)
+                            : '';
+                        const verdes = [{filas_verdes}];
+                        const rojos = [{filas_rojas}];
+
+                        const raw = params.value;
+                        const texto = raw === null || raw === undefined ? '' : String(raw).trim();
+                        const esNegativo = texto.startsWith('-') || /^\\(.*\\)$/.test(texto);
+
+                        let estilo = {{
+                            'textAlign': 'right'
+                        }};
+
+                        if (verdes.includes(concepto)) {{
+                            estilo['backgroundColor'] = '#d9ead3';
+                            estilo['fontWeight'] = '700';
+                        }} else if (rojos.includes(concepto)) {{
+                            estilo['backgroundColor'] = '#f4cccc';
+                            estilo['fontWeight'] = '700';
+                        }}
+
+                        if (esNegativo) {{
+                            estilo['color'] = '#d00000';
+                        }}
+
+                        return estilo;
+                    }}
+                    """
+                )
+                cell_style = estilo_kpi_js
+            else:
+                cell_style = estilo_numerico_js
+
             gb.configure_column(
                 col,
                 width=ancho,
                 minWidth=74,
                 maxWidth=220,
-                cellStyle=estilo_numerico_js,
+                cellStyle=cell_style,
             )
 
     gb.configure_grid_options(
@@ -367,7 +481,6 @@ def render_aggrid_table(df_display: pd.DataFrame, modo: str = "auto") -> None:
         suppressHorizontalScroll=False,
     )
 
-    # Altura calculada para mostrar todas las filas sin scroll vertical interno.
     altura_tabla = 34 + (len(df_display) * 32)
 
     AgGrid(
@@ -726,7 +839,13 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
         df_kpi_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
         df_kpi_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
         
-        render_aggrid_table(df_kpi_display, modo="auto")
+        render_aggrid_table(
+            df_kpi_display,
+            modo="auto",
+            df_numericos=df_kpi_numericos,
+            resaltar_kpi_tiendas=len(tiendas) > 1,
+            columnas_comparar=tiendas if len(tiendas) > 1 else None,
+        )
         descargar_excel(df_kpi_numericos, "Informe_KPI", f"Informe_KPI_Ventas_{ano}.xlsx",
                        "Descargar Informe KPI en Excel")
     
@@ -770,7 +889,13 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
         df_kpi_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
         df_kpi_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
         
-        render_aggrid_table(df_kpi_display, modo="auto")
+        render_aggrid_table(
+            df_kpi_display,
+            modo="auto",
+            df_numericos=df_kpi_numericos,
+            resaltar_kpi_tiendas=len(tiendas) > 1,
+            columnas_comparar=tiendas if len(tiendas) > 1 else None,
+        )
         descargar_excel(df_kpi_numericos, "Informe_KPI", f"Informe_KPI_Ventas_{ano}.xlsx",
                        "Descargar Informe KPI en Excel")
     
@@ -828,7 +953,13 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
         df_kpi_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
         df_kpi_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
         
-        render_aggrid_table(df_kpi_display, modo="auto")
+        render_aggrid_table(
+            df_kpi_display,
+            modo="auto",
+            df_numericos=df_kpi_numericos,
+            resaltar_kpi_tiendas=len(tiendas) > 1,
+            columnas_comparar=tiendas if len(tiendas) > 1 else None,
+        )
         descargar_excel(df_kpi_numericos, "Informe_KPI", f"Informe_KPI_Ventas_{ano}.xlsx",
                        "Descargar Informe KPI en Excel")
 
