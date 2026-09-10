@@ -923,8 +923,22 @@ def render_aggrid_table(
     get_row_style = JsCode(
         f"""
         function(params) {{
-            const valor = params.data && params.data.Resultados ? String(params.data.Resultados) : '';
+            let valor = '';
+            if (params.data) {{
+                if (params.data.Resultados !== undefined && params.data.Resultados !== null) {{
+                    valor = String(params.data.Resultados);
+                }} else if (params.data.Tienda !== undefined && params.data.Tienda !== null) {{
+                    valor = String(params.data.Tienda);
+                }} else {{
+                    const claves = Object.keys(params.data);
+                    if (claves.length > 0 && params.data[claves[0]] !== undefined && params.data[claves[0]] !== null) {{
+                        valor = String(params.data[claves[0]]);
+                    }}
+                }}
+            }}
+
             const filasNegrita = [{filas_js}];
+
             if (filasNegrita.includes(valor)) {{
                 return {{
                     'fontWeight': '700',
@@ -2549,6 +2563,9 @@ elif modulo_principal == "Cuenta de Resultados Completa":
 elif modulo_principal == "Análisis de Inventario y Rotación":
     st.header("Análisis de Inventario y Rotación")
 
+    # Los m² se cargan también en este módulo para poder calcular
+    # Stock €/m² en la comparativa de tiendas.
+    m2_por_tienda = load_tiendas_m2()
     df_inventario = load_inventario()
 
     if df_inventario.empty:
