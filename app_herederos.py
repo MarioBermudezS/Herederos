@@ -1,11 +1,10 @@
 import io
 import pandas as pd
 import streamlit as st
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS optimizado para expansión total al 100%
+# CSS avanzado para fuentes compactas, celdas reducidas y pantalla completa absoluta
 st.markdown(
     """
     <style>
@@ -15,19 +14,33 @@ st.markdown(
     a[href*="github.com"] {display: none !important;}
     
     .block-container {
-        padding-top: 0.5rem !important;
-        padding-bottom: 0.5rem !important;
-        padding-left: 1rem !important;
-        padding-right: 1rem !important;
+        padding-top: 0.3rem !important;
+        padding-bottom: 0.3rem !important;
+        padding-left: 0.8rem !important;
+        padding-right: 0.8rem !important;
         max-width: 100% !important;
     }
     h1 {
-        font-size: 1.2rem !important;
+        font-size: 1.1rem !important;
         margin-bottom: 0.1rem !important;
     }
     h3 {
-        font-size: 0.95rem !important;
+        font-size: 0.9rem !important;
         margin-bottom: 0.1rem !important;
+    }
+    
+    /* Reducción de tamaño de letra y padding en tablas Streamlit para pantalla completa */
+    dataframe, [data-testid="stDataFrame"] {
+        font-size: 11.5px !important;
+    }
+    th {
+        font-size: 11.5px !important;
+        padding: 4px 8px !important;
+        background-color: #f1f5f9 !important;
+    }
+    td {
+        font-size: 11.5px !important;
+        padding: 3px 8px !important;
     }
     </style>
 """,
@@ -94,7 +107,7 @@ meses_orden = [
 ]
 meses_excel = (
     df["Mes"].dropna().unique().tolist() if "Mes" in df.columns else ["Enero"]
-)
+]
 meses_disponibles = [m for m in meses_orden if m in meses_excel]
 if not meses_disponibles:
   meses_disponibles = meses_excel
@@ -116,101 +129,61 @@ campos_destacados = [
     "TOTAL GRUPO",
 ]
 
-# JsCode avanzado para estilos, negritas, totales y sombreados condicionales en KPI
-cell_style_jscode = JsCode(
-    """
-function(params) {
-    var rowNode = params.node;
-    var colDef = params.colDef;
-    var val = params.value;
-    var field = colDef.field;
-    var rowLabel = rowNode.data.Resultados || '';
 
-    var isDestacado = [
-        "MARGEN BRUTO", "R. B.", "Ingresos Operativos", 
-        "TOTAL GASTOS OPERATIVOS", "GASTOS ESTRUCTURA", 
-        "B.A.I.I.", "RDO. FINANCIERO", "Resultados Extraordinarios", "B.A.I.", "TOTAL GRUPO"
-    ].includes(rowLabel);
-
-    var isTotalCol = field === "Total" || field.startsWith("Total ");
-    var isFirstCol = colDef.pinned === "left" || colDef.field === "Resultados";
-
-    var style = {
-        'textAlign': isFirstCol ? 'left' : 'right',
-        'fontWeight': (isDestacado || isTotalCol) ? 'bold' : 'normal'
-    };
-
-    if (isTotalCol) {
-        style['backgroundColor'] = '#d1fae5';
-    } else if (isDestacado) {
-        style['backgroundColor'] = '#eef2f7';
-    }
-
-    if (typeof val === 'string') {
-        if (field === "Var. pp" || field === "Var. %" || field === "Var. €") {
-            if (!val.includes('-') && val !== '-' && val !== '0,00%' && val !== '0,00 pp') {
-                style['color'] = '#16a34a';
-                style['backgroundColor'] = '#dcfce7';
-                style['fontWeight'] = 'bold';
-            } else if (val.includes('-')) {
-                style['color'] = '#dc2626';
-                style['backgroundColor'] = '#fee2e2';
-                style['fontWeight'] = 'bold';
-            }
-        } else if (val.includes('-') && !val.includes('%') && !val.includes('pp')) {
-            style['color'] = '#dc2626';
-            style['backgroundColor'] = '#fee2e2';
-            style['fontWeight'] = 'bold';
-        }
-    }
-
-    return style;
-}
-"""
-)
-
-
-def render_tabla_aggrid(df_display):
-  gb = GridOptionsBuilder.from_dataframe(df_display)
-  gb.configure_default_column(
-      resizable=True,
-      filterable=False,
-      sortable=False,
-      editable=False,
-      suppressMenu=True,
-      cellStyle=cell_style_jscode,
-  )
-
-  if len(df_display.columns) > 0:
-    first_col = df_display.columns[0]
-    gb.configure_column(
-        first_col,
-        pinned="left",
-        width=230,
-        minWidth=200,
+# Función para aplicar estilos visuales profesionales (Negritas, Destacados y Colores Verde/Rojo)
+def aplicar_estilos_dataframe(df_styled):
+  def style_cells(val, row_name, col_name):
+    # Detección de filas clave / totales
+    is_destacado = row_name in campos_destacados or row_name == "TOTAL GRUPO"
+    is_total_col = (
+        col_name == "Total"
+        or str(col_name).startswith("Total ")
+        or str(col_name).startswith("Promedio")
     )
 
-  for col in df_display.columns[1:]:
-    gb.configure_column(col, width=125, minWidth=105)
+    bg = ""
+    color = ""
+    weight = "bold" if (is_destacado or is_total_col) else "normal"
 
-  gb.configure_grid_options(
-      suppressRowClickSelection=True,
-  )
-  gridOptions = gb.build()
+    if is_total_col:
+      bg = "background-color: #d1fae5;"
+    elif is_destacado:
+      bg = "background-color: #eef2f7;"
 
-  # Altura calculada exacta para mostrar todas las filas de un vistazo sin scroll interno
-  row_count = len(df_display)
-  calculated_height = (row_count + 2) * 38 + 25
+    # Colores condicionales en verde y rojo para variaciones y negativos
+    val_str = str(val)
+    if (
+        "Var." in str(col_name)
+        or "pp" in val_str
+        or "%" in val_str
+        or "€" in val_str
+    ):
+      if "-" in val_str and val_str.strip() != "-":
+        color = "color: #dc2626;"
+        bg = "background-color: #fee2e2;"
+        weight = "bold"
+      elif (
+          any(x in str(col_name) for x in ["Var.", "pp"])
+          and val_str != "-"
+          and val_str != "0,00%"
+          and val_str != "0,00 pp"
+          and not "-" in val_str
+      ):
+        color = "color: #16a34a;"
+        bg = "background-color: #dcfce7;"
+        weight = "bold"
 
-  AgGrid(
-      df_display,
-      gridOptions=gridOptions,
-      height=calculated_height,
-      update_mode=GridUpdateMode.NO_UPDATE,
-      fit_columns_on_grid_load=True,
-      allow_unsafe_jscode=True,
-      theme="balham",
-  )
+    return f"{bg} {color} font-weight: {weight};"
+
+  # Creamos una matriz de estilos basada en los valores y nombres de filas/columnas
+  df_style_obj = pd.DataFrame("", index=df_styled.index, columns=df_styled.columns)
+  for r_idx in df_styled.index:
+    row_label = df_styled.loc[r_idx, df_styled.columns[0]]
+    for c_col in df_styled.columns:
+      val = df_styled.loc[r_idx, c_col]
+      df_style_obj.loc[r_idx, c_col] = style_cells(val, row_label, c_col)
+
+  return df_styled.style.apply(lambda _: df_style_obj, axis=None)
 
 
 # =====================================================================
@@ -343,7 +316,11 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
     df_res_d = pd.DataFrame(filas_display, columns=columnas_tabla)
     df_res_n = pd.DataFrame(filas_nums, columns=columnas_tabla)
 
-    render_tabla_aggrid(df_res_d)
+    st.dataframe(
+        aplicar_estilos_dataframe(df_res_d),
+        use_container_width=True,
+        hide_index=True,
+    )
 
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -395,10 +372,18 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
       filas_acum_d.append(["TOTAL GRUPO", f"{val_tot * 100:,.2f}%".replace(",", "X").replace(".", ",").replace("X", ".")])
       filas_acum_n.append(["TOTAL GRUPO", val_tot])
 
-    df_acum_d = pd.DataFrame(filas_acum_d, columns=["Resultados", f"Acumulado {nombre_m_str}"])
-    df_acum_n = pd.DataFrame(filas_acum_n, columns=["Resultados", f"Acumulado {nombre_m_str}"])
+    df_acum_d = pd.DataFrame(
+        filas_acum_d, columns=["Resultados", f"Acumulado {nombre_m_str}"]
+    )
+    df_acum_n = pd.DataFrame(
+        filas_acum_n, columns=["Resultados", f"Acumulado {nombre_m_str}"]
+    )
 
-    render_tabla_aggrid(df_acum_d)
+    st.dataframe(
+        aplicar_estilos_dataframe(df_acum_d),
+        use_container_width=True,
+        hide_index=True,
+    )
 
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -489,7 +474,11 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
     df_inter_d = pd.DataFrame(filas_inter_d, columns=columnas_interanual_rb)
     df_inter_n = pd.DataFrame(filas_inter_n, columns=columnas_interanual_rb)
 
-    render_tabla_aggrid(df_inter_d)
+    st.dataframe(
+        aplicar_estilos_dataframe(df_inter_d),
+        use_container_width=True,
+        hide_index=True,
+    )
 
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -754,7 +743,7 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
         mask_total_meses = (
             (df["Año"] == ano)
             & (df["Mes"].isin(meses_sel))
-            & (df["Departamento"] == tienda_unica)
+            & (df["Departamento"].isin(tienda_unica))
         )
         datos_fuente["Total"] = calcular_resultados(df[mask_total_meses])
 
@@ -867,7 +856,11 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
   df_kpi_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
   df_kpi_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
 
-  render_tabla_aggrid(df_kpi_display)
+  st.dataframe(
+      aplicar_estilos_dataframe(df_kpi_display),
+      use_container_width=True,
+      hide_index=True,
+  )
 
   output = io.BytesIO()
   with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -1230,7 +1223,11 @@ else:
   df_resultado_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
   df_valores_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
 
-  render_tabla_aggrid(df_resultado_display)
+  st.dataframe(
+      aplicar_estilos_dataframe(df_resultado_display),
+      use_container_width=True,
+      hide_index=True,
+  )
 
   output = io.BytesIO()
   with pd.ExcelWriter(output, engine="openpyxl") as writer:
