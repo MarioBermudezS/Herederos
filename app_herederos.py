@@ -474,8 +474,40 @@ def render_aggrid_table(
         else:
             ancho = calcular_ancho_columna(df_display, col, 74)
 
+            col_norm = str(col).strip().upper()
+            es_columna_total = (
+                "TOTAL" in col_norm
+                or "PROMEDIO" in col_norm
+                or "ACUMULADO" in col_norm
+            )
+
+            # Las columnas de total/promedio/acumulado tienen sombreado propio
+            # y no usan el semáforo verde/rojo comparativo.
+            if es_columna_total:
+                estilo_total_js = JsCode(
+                    r"""
+                    function(params) {
+                        const raw = params.value;
+                        const texto = raw === null || raw === undefined ? '' : String(raw).trim();
+
+                        let estilo = {
+                            'textAlign': 'right',
+                            'backgroundColor': '#eef1f4',
+                            'fontWeight': '700'
+                        };
+
+                        if (texto.startsWith('-') || /^\(.*\)$/.test(texto)) {
+                            estilo['color'] = '#d00000';
+                        }
+
+                        return estilo;
+                    }
+                    """
+                )
+                cell_style = estilo_total_js
+
             # Si esta columna participa en comparación KPI o R.B., añadir sombreado.
-            if (
+            elif (
                 col in verdes_por_columna
                 or col in rojos_por_columna
                 or col in rb_verdes
@@ -652,7 +684,37 @@ def render_aggrid_rb_horizontal(
 
         ancho = calcular_ancho_columna(df_display, col, 78)
 
-        if col in tiendas:
+        col_norm = str(col).strip().upper()
+        es_columna_total = (
+            "TOTAL" in col_norm
+            or "PROMEDIO" in col_norm
+            or "ACUMULADO" in col_norm
+        )
+
+        if es_columna_total:
+            estilo = JsCode(
+                r"""
+                function(params) {
+                    const texto = params.value === null || params.value === undefined
+                        ? ''
+                        : String(params.value).trim();
+
+                    let estilo = {
+                        'textAlign': 'right',
+                        'backgroundColor': '#eef1f4',
+                        'fontWeight': '700'
+                    };
+
+                    if (texto.startsWith('-') || /^\(.*\)$/.test(texto)) {
+                        estilo['color'] = '#d00000';
+                    }
+
+                    return estilo;
+                }
+                """
+            )
+
+        elif col in tiendas:
             verdes = ",".join(repr(x) for x in sorted(verdes_por_columna.get(col, set())))
             rojos = ",".join(repr(x) for x in sorted(rojos_por_columna.get(col, set())))
 
