@@ -320,8 +320,22 @@ def estado_columnas_js(clave: str, autoajustar_todas: bool = False) -> JsCode:
             // Autoajuste de todas las columnas cuando se pulsa el botón.
             if (autoajustarTodas) {{
                 try {{
-                    params.api.autoSizeAllColumns(false);
-                    setTimeout(guardar, 120);
+                    if (params.api && params.api.autoSizeAllColumns) {{
+                        params.api.autoSizeAllColumns(false);
+                    }} else if (params.columnApi && params.columnApi.autoSizeAllColumns) {{
+                        params.columnApi.autoSizeAllColumns(false);
+                    }} else {{
+                        const cols = [];
+                        if (params.api && params.api.getColumns) {{
+                            params.api.getColumns().forEach(function(col) {{
+                                cols.push(col.getColId());
+                            }});
+                        }}
+                        if (cols.length && params.columnApi && params.columnApi.autoSizeColumns) {{
+                            params.columnApi.autoSizeColumns(cols, false);
+                        }}
+                    }}
+                    setTimeout(guardar, 250);
                 }} catch (e) {{}}
             }}
 
@@ -661,11 +675,20 @@ def render_aggrid_table(
 
     altura_tabla = altura_cabecera + (len(df_display) * altura_fila)
 
-    autoajustar_todas = st.button(
+    boton_autoajuste = st.button(
         "↔ Autoajustar todas las columnas",
         key=f"autoajustar_todas_{clave_preferencias}",
         help="Ajusta automáticamente todas las columnas según su cabecera y contenido.",
     )
+
+    token_key = f"token_autoajuste_{clave_preferencias}"
+    if token_key not in st.session_state:
+        st.session_state[token_key] = 0
+
+    if boton_autoajuste:
+        st.session_state[token_key] += 1
+
+    autoajustar_todas = boton_autoajuste
 
     gb.configure_grid_options(
         onGridReady=estado_columnas_js(
@@ -677,6 +700,7 @@ def render_aggrid_table(
     AgGrid(
         df_display,
         gridOptions=gb.build(),
+        key=f"grid_{clave_preferencias}_{st.session_state[token_key]}",
         update_mode=GridUpdateMode.NO_UPDATE,
         fit_columns_on_grid_load=False,
         allow_unsafe_jscode=True,
@@ -921,11 +945,20 @@ def render_aggrid_rb_horizontal(
 
     altura_tabla = altura_cabecera + (len(df_display) * altura_fila)
 
-    autoajustar_todas = st.button(
+    boton_autoajuste = st.button(
         "↔ Autoajustar todas las columnas",
         key=f"autoajustar_todas_{clave_preferencias}",
         help="Ajusta automáticamente todas las columnas según su cabecera y contenido.",
     )
+
+    token_key = f"token_autoajuste_{clave_preferencias}"
+    if token_key not in st.session_state:
+        st.session_state[token_key] = 0
+
+    if boton_autoajuste:
+        st.session_state[token_key] += 1
+
+    autoajustar_todas = boton_autoajuste
 
     gb.configure_grid_options(
         onGridReady=estado_columnas_js(
@@ -937,6 +970,7 @@ def render_aggrid_rb_horizontal(
     AgGrid(
         df_display,
         gridOptions=gb.build(),
+        key=f"grid_{clave_preferencias}_{st.session_state[token_key]}",
         update_mode=GridUpdateMode.NO_UPDATE,
         fit_columns_on_grid_load=False,
         allow_unsafe_jscode=True,
