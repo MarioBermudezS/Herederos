@@ -120,8 +120,26 @@ def calcular_ancho_columna(df: pd.DataFrame, col_name: str, min_width: int = 74)
 
 @st.cache_data
 def load_data() -> pd.DataFrame:
-    """Carga datos del archivo Excel."""
-    return pd.read_excel("BaseDatos2026.xlsx", sheet_name="BS")
+    """Carga datos del archivo Excel y normaliza campos de texto."""
+    df = pd.read_excel("BaseDatos2026.xlsx", sheet_name="BS")
+
+    # Evita que espacios invisibles o diferencias de mayúsculas/minúsculas
+    # hagan desaparecer meses, tiendas o conceptos en los filtros.
+    for col in ["Mes", "Departamento", "Resultados"]:
+        if col in df.columns:
+            df[col] = df[col].astype("string").str.strip()
+
+    if "Mes" in df.columns:
+        mapa_meses = {m.upper(): m for m in MESES_ORDEN}
+        df["Mes"] = df["Mes"].apply(
+            lambda x: mapa_meses.get(str(x).strip().upper(), str(x).strip())
+            if pd.notna(x) else x
+        )
+
+    if "Año" in df.columns:
+        df["Año"] = pd.to_numeric(df["Año"], errors="coerce")
+
+    return df
 
 def obtener_filtro_datos(
     df: pd.DataFrame, 
@@ -588,12 +606,14 @@ def render_aggrid_table(
                 "line-height": "27px",
                 "padding-left": "5px",
                 "padding-right": "5px",
+                "border-right": "1px solid #c9ced3",
             },
             ".ag-header-cell": {
                 "font-size": "13px",
                 "font-weight": "600",
                 "padding-left": "5px",
                 "padding-right": "5px",
+                "border-right": "1px solid #b8bec5",
             },
         },
     )
@@ -815,12 +835,14 @@ def render_aggrid_rb_horizontal(
                 "line-height": "31px",
                 "padding-left": "5px",
                 "padding-right": "5px",
+                "border-right": "1px solid #c9ced3",
             },
             ".ag-header-cell": {
                 "font-size": "13px",
                 "font-weight": "600",
                 "padding-left": "5px",
                 "padding-right": "5px",
+                "border-right": "1px solid #b8bec5",
             },
         },
     )
