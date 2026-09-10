@@ -4,6 +4,7 @@ import streamlit as st
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
 from typing import Dict, List, Tuple
 from pathlib import Path
+import re
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
@@ -139,90 +140,38 @@ def calcular_ancho_columna(df: pd.DataFrame, col_name: str, min_width: int = 74)
 
 def obtener_archivo_datos() -> str:
     """
-    Localiza el Excel de datos que contiene las hojas BS y Tiendas.
-    Prioriza BaseDatos2026.xlsx, pero admite nombres como BaseDatos2026(1).xlsx.
+    Localiza el Excel de datos de forma segura.
+
+    Regla:
+      1) Si existe BaseDatos2026.xlsx y contiene BS/Tiendas, se usa SIEMPRE.
+      2) Si no existe, entre BaseDatos2026(n).xlsx se usa la versión numérica
+         más alta que contenga las hojas necesarias.
+
+    Así evitamos que una versión antigua como BaseDatos2026(1).xlsx tenga
+    prioridad sobre BaseDatos2026(8).xlsx.
     """
-    candidatos = [
-        Path("BaseDatos2026.xlsx"),
-        Path("BaseDatos2026(1).xlsx"),
-    ]
+    principal = Path("BaseDatos2026.xlsx")
 
-    # Añadir cualquier variante BaseDatos2026*.xlsx que exista.
-    for p in sorted(Path(".").glob("BaseDatos2026*.xlsx")):
-        if p not in candidatos:
-            candidatos.append(p)
-
-    # Máxima prioridad: libro completo con la hoja Ajustes.
-    for archivo in candidatos:
-        if not archivo.exists():
-            continue
+    def hojas_validas(archivo: Path) -> bool:
         try:
-            hojas = pd.ExcelFile(archivo).sheet_names
-            if all(
-                h in hojas
-                for h in [
-                    "BS",
-                    "Tiendas",
-                    "Inventario",
-                    "MargenesTotalesAcumulados",
-                    "Ajustes",
-                ]
-            ):
-                return str(archivo)
+            hojas = set(pd.ExcelFile(archivo).sheet_names)
+            return {"BS", "Tiendas"}.issubset(hojas)
         except Exception:
-            pass
+            return False
 
-    # Primero buscar la versión más completa del libro.
-    # Para Inventario/Rotación necesitamos también los márgenes totales
-    # acumulados oficiales del ERP.
-    for archivo in candidatos:
-        if not archivo.exists():
-            continue
-        try:
-            hojas = pd.ExcelFile(archivo).sheet_names
-            if all(
-                h in hojas
-                for h in [
-                    "BS",
-                    "Tiendas",
-                    "Inventario",
-                    "MargenesTotalesAcumulados",
-                ]
-            ):
-                return str(archivo)
-        except Exception:
-            pass
+    if principal.exists() and hojas_validas(principal):
+        return str(principal)
 
-    # Segunda prioridad: versiones con BS, Tiendas e Inventario.
-    for archivo in candidatos:
-        if not archivo.exists():
-            continue
-        try:
-            hojas = pd.ExcelFile(archivo).sheet_names
-            if all(h in hojas for h in ["BS", "Tiendas", "Inventario"]):
-                return str(archivo)
-        except Exception:
-            pass
+    variantes = []
+    patron = re.compile(r"^BaseDatos2026\((\d+)\)\.xlsx$", re.IGNORECASE)
+    for p in Path(".").glob("BaseDatos2026*.xlsx"):
+        m = patron.match(p.name)
+        if m and p.exists() and hojas_validas(p):
+            variantes.append((int(m.group(1)), p))
 
-    # Compatibilidad con versiones anteriores sin Inventario.
-    for archivo in candidatos:
-        if not archivo.exists():
-            continue
-        try:
-            hojas = pd.ExcelFile(archivo).sheet_names
-            if "BS" in hojas and "Tiendas" in hojas:
-                return str(archivo)
-        except Exception:
-            pass
-
-    # Si no existe uno con ambas hojas, usar BaseDatos2026.xlsx si existe.
-    if Path("BaseDatos2026.xlsx").exists():
-        return "BaseDatos2026.xlsx"
-
-    # Último recurso: primer candidato existente.
-    for archivo in candidatos:
-        if archivo.exists():
-            return str(archivo)
+    if variantes:
+        variantes.sort(key=lambda x: x[0], reverse=True)
+        return str(variantes[0][1])
 
     return "BaseDatos2026.xlsx"
 
@@ -875,9 +824,20 @@ def calcular_resultados_total_empresa(
 
     baii = ingresos_operativos - gastos_estructura
 
+    # IMPORTANTE: conservar SIEMPRE el signo contable original del Excel.
+    # En las cuentas de ingresos (grupo 7), los importes pueden venir negativos.
+    # Por ejemplo:
+    #   Gastos Financieros      +10.000
+    #   Ingresos Financieros     -2.000
+    #   RDO. FINANCIERO           8.000  -> resta 8.000 al BAI
+    #
+    # Del mismo modo, Resultados Extraordinarios se toma tal cual del Excel:
+    #   positivo -> resta al BAI
+    #   negativo -> al restarlo, aumenta el BAI (es ingreso neto extraordinario)
     gastos_financieros = get_v("Gastos Financieros")
     ingresos_financieros = get_v("Ingresos Financieros")
     rdo_financiero = gastos_financieros + ingresos_financieros
+
     resultados_extraordinarios = get_v("Resultados Extraordinarios")
     bai = baii - rdo_financiero - resultados_extraordinarios
 
@@ -979,11 +939,14 @@ def calcular_resultados(
         - amortizaciones
     )
     
-    # Resultado financiero
+    # Resultado financiero y extraordinario.
+    # CONSERVAR el signo contable que viene del Excel:
+    # - los ingresos financieros negativos reducen el saldo financiero y mejoran BAI;
+    # - un resultado extraordinario negativo, al restarse, aumenta el BAI.
     gastos_financieros = get_v("Gastos Financieros")
     ingresos_financieros = get_v("Ingresos Financieros")
     rdo_financiero = gastos_financieros + ingresos_financieros
-    
+
     resultados_extraordinarios = get_v("Resultados Extraordinarios")
     bai = baii - rdo_financiero - resultados_extraordinarios
     
