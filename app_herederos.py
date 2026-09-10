@@ -51,8 +51,10 @@ MESES_ORDEN = [
 
 CONCEPTOS_KPI = [
     "Ventas",
-    "Coste Ventas",
+    "Consumo Ventas",
+    "Variación Existencias",
     "Ajustes Existencias",
+    "Coste Ventas",
     "MARGEN BRUTO",
     "R. B.",
     "Otros Ingresos",
@@ -786,6 +788,127 @@ def calcular_rb_puro(df_filtrado: pd.DataFrame) -> float:
     
     return total_margen / total_ventas
 
+def _periodo_anterior(ano: int, mes: str) -> Tuple[int, str]:
+    idx = MESES_ORDEN.index(mes)
+    if idx == 0:
+        return int(ano) - 1, "Diciembre"
+    return int(ano), MESES_ORDEN[idx - 1]
+
+
+def obtener_inventario_total_mes(ano: int, mes: str) -> float:
+    """Inventario total empresa del cierre del mes, incluido General."""
+    inv = load_inventario()
+    if inv.empty:
+        return 0.0
+    f = inv[(inv["Año"] == int(ano)) & (inv["Mes"] == mes)]
+    if f.empty:
+        return 0.0
+    return float(pd.to_numeric(f["Inventario"], errors="coerce").fillna(0).sum())
+
+
+def obtener_variacion_existencias_mes(ano: int, mes: str) -> float:
+    """
+    Variación de existencias = Inventario inicial - Inventario final.
+    Ejemplo julio 2026: 3.307.283,17 - 3.510.319,10 = -203.035,93.
+    """
+    ano_ant, mes_ant = _periodo_anterior(ano, mes)
+    inv_ini = obtener_inventario_total_mes(ano_ant, mes_ant)
+    inv_fin = obtener_inventario_total_mes(ano, mes)
+    if inv_ini == 0.0 or inv_fin == 0.0:
+        return 0.0
+    return inv_ini - inv_fin
+
+
+def calcular_resultados_total_empresa(
+    df_datos: pd.DataFrame,
+    ano: int,
+    meses: List[str],
+) -> Dict[str, float]:
+    """
+    Cuenta de Resultados TOTAL empresa, incluyendo el departamento General.
+
+    Criterio acordado:
+      Coste Ventas = Consumo Ventas + Variación Existencias + Ajustes Existencias
+      Variación Existencias = Inventario inicial - Inventario final
+      Margen Bruto = Ventas - Coste Ventas
+
+    Los importes mensuales se calculan mes a mes y después se acumulan.
+    """
+    meses_validos = [m for m in MESES_ORDEN if m in list(meses or [])]
+    if not meses_validos:
+        return {c: 0.0 for c in CONCEPTOS_KPI}
+
+    df_periodo = obtener_filtro_datos(df_datos, int(ano), meses_validos, None)
+    if df_periodo.empty:
+        return {c: 0.0 for c in CONCEPTOS_KPI}
+
+    resumen = df_periodo.groupby("Resultados")["Importe D"].sum().to_dict()
+
+    def get_v(cat):
+        return float(resumen.get(cat, 0.0) or 0.0)
+
+    ventas = get_v("Ventas")
+    consumo_ventas = get_v("Consumo Ventas")
+    variacion_existencias = sum(
+        obtener_variacion_existencias_mes(int(ano), mes) for mes in meses_validos
+    )
+    ajustes_existencias = obtener_ajuste_existencias(int(ano), meses_validos)
+
+    coste_ventas = consumo_ventas + variacion_existencias + ajustes_existencias
+    margen_bruto = ventas - coste_ventas
+    r_bruta = (margen_bruto / ventas) if ventas != 0 else 0.0
+
+    otros_ingresos = get_v("Otros Ingresos")
+    ingresos_operativos = margen_bruto + otros_ingresos
+
+    gastos_personal = get_v("Gastos Personal")
+    alquileres = get_v("Alquileres")
+    reparaciones = get_v("Reparaciones")
+    seguros = get_v("Seguros")
+    suministros = get_v("Suministros")
+    otros_servicios = get_v("Otros Servicios")
+    total_gastos_operativos = (
+        alquileres + reparaciones + seguros + suministros + otros_servicios
+    )
+    amortizaciones = get_v("Amortizaciones")
+    gastos_estructura = total_gastos_operativos + gastos_personal + amortizaciones
+
+    baii = ingresos_operativos - gastos_estructura
+
+    gastos_financieros = get_v("Gastos Financieros")
+    ingresos_financieros = get_v("Ingresos Financieros")
+    rdo_financiero = gastos_financieros + ingresos_financieros
+    resultados_extraordinarios = get_v("Resultados Extraordinarios")
+    bai = baii - rdo_financiero - resultados_extraordinarios
+
+    return {
+        "Ventas": ventas,
+        "Consumo Ventas": consumo_ventas,
+        "Variación Existencias": variacion_existencias,
+        "Ajustes Existencias": ajustes_existencias,
+        "Coste Ventas": coste_ventas,
+        "MARGEN BRUTO": margen_bruto,
+        "R. B.": r_bruta,
+        "Otros Ingresos": otros_ingresos,
+        "Ingresos Operativos": ingresos_operativos,
+        "Gastos Personal": gastos_personal,
+        "Alquileres": alquileres,
+        "Reparaciones": reparaciones,
+        "Seguros": seguros,
+        "Suministros": suministros,
+        "Otros Servicios": otros_servicios,
+        "TOTAL GASTOS OPERATIVOS": total_gastos_operativos,
+        "Amortizaciones": amortizaciones,
+        "GASTOS ESTRUCTURA": gastos_estructura,
+        "B.A.I.I.": baii,
+        "Gastos Financieros": gastos_financieros,
+        "Ingresos Financieros": ingresos_financieros,
+        "RDO. FINANCIERO": rdo_financiero,
+        "Resultados Extraordinarios": resultados_extraordinarios,
+        "B.A.I.": bai,
+    }
+
+
 def calcular_resultados(
     df_filtrado: pd.DataFrame,
     ajuste_existencias: float = 0.0,
@@ -866,6 +989,8 @@ def calcular_resultados(
     
     return {
         "Ventas": ventas,
+        "Consumo Ventas": 0.0,
+        "Variación Existencias": 0.0,
         "Coste Ventas": coste_ventas,
         "Ajustes Existencias": ajuste_existencias,
         "MARGEN BRUTO": margen_bruto,
@@ -2606,6 +2731,7 @@ elif modulo_principal == "Cuenta de Resultados Completa":
     )
     
     # Selección de tiendas
+    total_empresa_consulta = False
     if modo_analisis == "Comparativa Multi-Tienda (Totales)":
         tiendas = st.sidebar.multiselect(
             "Selecciona tiendas a comparar",
@@ -2616,9 +2742,12 @@ elif modulo_principal == "Cuenta de Resultados Completa":
         )
     else:
         tipo_consulta = st.sidebar.radio(
-            "Tipo de consulta", ["Una tienda", "Conjunto de tiendas"]
+            "Tipo de consulta", ["Total empresa", "Una tienda", "Conjunto de tiendas"]
         )
-        if tipo_consulta == "Una tienda":
+        if tipo_consulta == "Total empresa":
+            total_empresa_consulta = True
+            tiendas = departamentos_disponibles.copy()
+        elif tipo_consulta == "Una tienda":
             tienda_sel = st.sidebar.selectbox("Selecciona tienda", departamentos_disponibles)
             tiendas = [tienda_sel] if tienda_sel else []
         else:
@@ -2736,32 +2865,43 @@ elif modulo_principal == "Cuenta de Resultados Completa":
         
         datos_fuente = {}
         
-        if len(tiendas) > 1:
-            # Comparativa por tiendas
-            for tienda in tiendas:
-                df_filtrado = obtener_filtro_datos(df, ano, meses_sel, [tienda])
-                datos_fuente[tienda] = calcular_resultados(df_filtrado)
-            
-            df_filtrado = obtener_filtro_datos(df, ano, meses_sel, tiendas)
-            datos_fuente["Total"] = calcular_resultados_seleccion(
-            df_filtrado, ano, meses_sel, tiendas, departamentos_sin_general
-        )
-            columnas_eje = tiendas + ["Total"]
-        else:
-            # Evolución por meses
+        if total_empresa_consulta:
+            # TOTAL EMPRESA: meses en columnas, incluyendo General y ajustes mensuales.
             for mes in meses_sel:
-                df_filtrado = obtener_filtro_datos(df, ano, [mes], tiendas)
-                datos_fuente[mes] = calcular_resultados(df_filtrado)
-            
+                datos_fuente[mes] = calcular_resultados_total_empresa(
+                    df, ano, [mes]
+                )
+
             if len(meses_sel) > 1:
-                df_filtrado = obtener_filtro_datos(df, ano, meses_sel, tiendas)
-                datos_fuente["Total"] = calcular_resultados_seleccion(
-            df_filtrado, ano, meses_sel, tiendas, departamentos_sin_general
-        )
+                datos_fuente["Total"] = calcular_resultados_total_empresa(
+                    df, ano, meses_sel
+                )
                 columnas_eje = meses_sel + ["Total"]
             else:
                 columnas_eje = meses_sel
-        
+
+        elif len(tiendas) > 1:
+            # Comparativa por tiendas (sin repartir los ajustes globales).
+            for tienda in tiendas:
+                df_filtrado = obtener_filtro_datos(df, ano, meses_sel, [tienda])
+                datos_fuente[tienda] = calcular_resultados(df_filtrado)
+
+            df_filtrado = obtener_filtro_datos(df, ano, meses_sel, tiendas)
+            datos_fuente["Total"] = calcular_resultados(df_filtrado)
+            columnas_eje = tiendas + ["Total"]
+        else:
+            # Evolución mensual de una sola tienda.
+            for mes in meses_sel:
+                df_filtrado = obtener_filtro_datos(df, ano, [mes], tiendas)
+                datos_fuente[mes] = calcular_resultados(df_filtrado)
+
+            if len(meses_sel) > 1:
+                df_filtrado = obtener_filtro_datos(df, ano, meses_sel, tiendas)
+                datos_fuente["Total"] = calcular_resultados(df_filtrado)
+                columnas_eje = meses_sel + ["Total"]
+            else:
+                columnas_eje = meses_sel
+
         columnas_tabla = ["Resultados"] + columnas_eje
         filas_tabla_display = []
         filas_valores_numericos = []
