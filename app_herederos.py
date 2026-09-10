@@ -2864,6 +2864,7 @@ elif modulo_principal == "Análisis de Inventario y Rotación":
                     "Tienda": tienda,
                     "Inventario Medio": inv_medio,
                     "Ventas Periodo": ventas,
+                    "% Margen Acumulado": (margen / ventas) if abs(ventas) > 1e-12 else None,
                     "Margen Bruto Periodo": margen,
                     "Coste Ventas Periodo": coste,
                     "Ventas / Stock": ventas_stock,
@@ -2947,6 +2948,7 @@ elif modulo_principal == "Análisis de Inventario y Rotación":
             "Tienda": "TOTAL",
             "Inventario Medio": inv_medio_total,
             "Ventas Periodo": ventas_total,
+            "% Margen Acumulado": margen_pct_total,
             "Margen Bruto Periodo": margen_total,
             "Coste Ventas Periodo": coste_total_erp,
             "Ventas / Stock": ventas_stock_total,
@@ -2958,6 +2960,10 @@ elif modulo_principal == "Análisis de Inventario y Rotación":
         df_eff_num = pd.concat([df_eff_num, fila_total], ignore_index=True)
 
         df_eff_disp = df_eff_num.copy()
+
+        df_eff_disp["% Margen Acumulado"] = df_eff_disp["% Margen Acumulado"].apply(
+            lambda x: formato_porcentaje(x) if pd.notna(x) else ""
+        )
 
         for col in [
             "Inventario Medio",
@@ -3000,6 +3006,9 @@ Promedio del inventario final de los meses seleccionados. Indica cuánto dinero 
 
 **Ventas Periodo**  
 Ventas acumuladas de la tienda durante los meses seleccionados.
+
+**% Margen Acumulado**  
+Porcentaje de margen bruto acumulado correspondiente al periodo seleccionado. Permite ver qué porcentaje de las ventas se convierte en margen bruto. En la fila **TOTAL** se muestra el porcentaje acumulado oficial del ERP correspondiente al último mes seleccionado.
 
 **Margen Bruto Periodo**  
 Margen bruto generado durante el periodo seleccionado. En la fila **TOTAL** se calcula utilizando el margen acumulado oficial del ERP del último mes seleccionado.
