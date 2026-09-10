@@ -110,10 +110,10 @@ def calcular_ancho_columna(df: pd.DataFrame, col_name: str, min_width: int = 80)
         max_len = len(col_name)
     
     # Calcular ancho: 8 píxeles por carácter + padding
-    ancho = max(max_len * 8 + 15, len(col_name) * 8 + 15, min_width)
+    ancho = max(max_len * 7 + 10, len(col_name) * 7 + 10, min_width)
     
     # Cap máximo para evitar columnas gigantes
-    return min(ancho, 250)
+    return min(ancho, 220)
 
 @st.cache_data
 def load_data() -> pd.DataFrame:
@@ -310,27 +310,49 @@ def render_aggrid_table(df_display: pd.DataFrame, modo: str = "auto") -> None:
         autoHeight=False,
     )
 
-    # AUTOAJUSTE REAL: cada columna se dimensiona por el texto más largo
-    # entre la cabecera y los valores mostrados.
+    # AUTOAJUSTE COMPACTO: ancho según cabecera y contenido, con menos padding.
+    # En las columnas numéricas, los valores negativos se muestran en rojo.
+    estilo_numerico_js = JsCode(
+        r"""
+        function(params) {
+            const raw = params.value;
+            if (raw === null || raw === undefined) {
+                return {'textAlign': 'right'};
+            }
+
+            const texto = String(raw).trim();
+            const esNegativo = texto.startsWith('-') || /^\(.*\)$/.test(texto);
+
+            if (esNegativo) {
+                return {
+                    'textAlign': 'right',
+                    'color': '#d00000'
+                };
+            }
+            return {'textAlign': 'right'};
+        }
+        """
+    )
+
     for i, col in enumerate(df_display.columns):
         if i == 0:
-            ancho = calcular_ancho_columna(df_display, col, 150)
+            ancho = calcular_ancho_columna(df_display, col, 130)
             gb.configure_column(
                 col,
                 pinned="left",
                 width=ancho,
-                minWidth=150,
-                maxWidth=280,
+                minWidth=130,
+                maxWidth=240,
                 cellStyle={"textAlign": "left"},
             )
         else:
-            ancho = calcular_ancho_columna(df_display, col, 80)
+            ancho = calcular_ancho_columna(df_display, col, 70)
             gb.configure_column(
                 col,
                 width=ancho,
-                minWidth=80,
-                maxWidth=250,
-                cellStyle={"textAlign": "right"},
+                minWidth=70,
+                maxWidth=220,
+                cellStyle=estilo_numerico_js,
             )
 
     gb.configure_grid_options(
