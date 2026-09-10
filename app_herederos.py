@@ -915,6 +915,7 @@ def render_aggrid_table(
         "RDO. FINANCIERO",
         "B.A.I.",
         "TOTAL GRUPO",
+        "TOTAL",
         "Total",
     }
 
@@ -2559,7 +2560,12 @@ elif modulo_principal == "Análisis de Inventario y Rotación":
 
     vista_inventario = st.sidebar.radio(
         "Vista de inventario",
-        ["Rotación / Cobertura", "Inventarios Mensuales"],
+        [
+            "Rotación / Cobertura",
+            "Inventarios Mensuales",
+            "Comparativa de Tiendas",
+            "Eficiencia de Inventario",
+        ],
         key="vista_inventario",
     )
 
@@ -2652,6 +2658,255 @@ elif modulo_principal == "Análisis de Inventario y Rotación":
             "Descargar inventarios mensuales en Excel",
         )
 
+        st.stop()
+
+    # -------------------------------------------------------------
+    # VISTA: COMPARATIVA DE TIENDAS
+    # -------------------------------------------------------------
+    if vista_inventario == "Comparativa de Tiendas":
+        inv_periodo_cmp = df_inventario[
+            (df_inventario["Año"] == ano)
+            & (df_inventario["Mes"].isin(meses_sel))
+        ].copy()
+
+        if inv_periodo_cmp.empty:
+            st.info("No hay inventario informado para el periodo seleccionado.")
+            st.stop()
+
+        tiendas_cmp = sorted(
+            inv_periodo_cmp["Departamento"]
+            .dropna()
+            .astype(str)
+            .str.strip()
+            .unique()
+        )
+
+        tiendas_cmp_sel = st.sidebar.multiselect(
+            "Selecciona tiendas",
+            tiendas_cmp,
+            default=tiendas_cmp,
+            key="tiendas_cmp_inventario",
+        )
+
+        if not tiendas_cmp_sel:
+            st.info("Selecciona al menos una tienda.")
+            st.stop()
+
+        filas_cmp = []
+        for tienda in tiendas_cmp_sel:
+            df_inv_tienda = inv_periodo_cmp[
+                inv_periodo_cmp["Departamento"].astype(str).str.strip()
+                == str(tienda).strip()
+            ]
+            inventario_medio = float(
+                pd.to_numeric(
+                    df_inv_tienda["Inventario"], errors="coerce"
+                ).dropna().mean()
+            ) if not df_inv_tienda.empty else 0.0
+
+            inventario_ultimo = 0.0
+            if not df_inv_tienda.empty:
+                orden_mes = {m: i for i, m in enumerate(MESES_ORDEN)}
+                aux = df_inv_tienda.copy()
+                aux["_orden"] = aux["Mes"].map(orden_mes)
+                aux = aux.sort_values("_orden")
+                inventario_ultimo = float(
+                    pd.to_numeric(
+                        aux["Inventario"], errors="coerce"
+                    ).fillna(0).iloc[-1]
+                )
+
+            df_ventas = obtener_filtro_datos(
+                df, ano, meses_sel, [tienda]
+            )
+            resultados_tienda = calcular_resultados(df_ventas)
+            ventas = float(resultados_tienda.get("Ventas", 0.0))
+            margen_bruto = float(resultados_tienda.get("MARGEN BRUTO", 0.0))
+
+            metros = m2_por_tienda.get(str(tienda).strip(), 0)
+            stock_m2 = inventario_ultimo / metros if metros > 0 else None
+            ventas_stock = ventas / inventario_medio if abs(inventario_medio) > 1e-12 else None
+            margen_stock = margen_bruto / inventario_medio if abs(inventario_medio) > 1e-12 else None
+
+            filas_cmp.append(
+                {
+                    "Tienda": tienda,
+                    "Inventario Último": inventario_ultimo,
+                    "Inventario Medio": inventario_medio,
+                    "Ventas Periodo": ventas,
+                    "Margen Bruto": margen_bruto,
+                    "Stock €/m²": stock_m2,
+                    "Ventas / Stock": ventas_stock,
+                    "Margen / Stock": margen_stock,
+                }
+            )
+
+        df_cmp_num = pd.DataFrame(filas_cmp)
+        df_cmp_disp = df_cmp_num.copy()
+
+        for col in ["Inventario Último", "Inventario Medio", "Ventas Periodo", "Margen Bruto", "Stock €/m²"]:
+            if col in df_cmp_disp.columns:
+                df_cmp_disp[col] = df_cmp_disp[col].apply(
+                    lambda x: formato_moneda(x) if pd.notna(x) else ""
+                )
+
+        for col in ["Ventas / Stock", "Margen / Stock"]:
+            if col in df_cmp_disp.columns:
+                df_cmp_disp[col] = df_cmp_disp[col].apply(
+                    lambda x: (
+                        f"{float(x):,.2f}"
+                        .replace(",", "X")
+                        .replace(".", ",")
+                        .replace("X", ".")
+                    ) if pd.notna(x) else ""
+                )
+
+        st.subheader(f"Comparativa de Tiendas — {ano}")
+        st.caption(
+            "Inventario, ventas, margen y eficiencia del stock para el periodo seleccionado."
+        )
+
+        render_aggrid_table(
+            df_cmp_disp,
+            modo="auto",
+            altura_fila=32,
+            altura_cabecera=38,
+            clave_preferencias="comparativa_inventario",
+        )
+
+        descargar_excel(
+            df_cmp_num,
+            "Comparativa Inventario",
+            f"Comparativa_Inventario_{ano}.xlsx",
+            "Descargar comparativa en Excel",
+        )
+        st.stop()
+
+    # -------------------------------------------------------------
+    # VISTA: EFICIENCIA DE INVENTARIO
+    # -------------------------------------------------------------
+    if vista_inventario == "Eficiencia de Inventario":
+        inv_periodo_eff = df_inventario[
+            (df_inventario["Año"] == ano)
+            & (df_inventario["Mes"].isin(meses_sel))
+        ].copy()
+
+        if inv_periodo_eff.empty:
+            st.info("No hay inventario informado para el periodo seleccionado.")
+            st.stop()
+
+        tiendas_eff = sorted(
+            inv_periodo_eff["Departamento"]
+            .dropna()
+            .astype(str)
+            .str.strip()
+            .unique()
+        )
+
+        tiendas_eff_sel = st.sidebar.multiselect(
+            "Selecciona tiendas",
+            tiendas_eff,
+            default=tiendas_eff,
+            key="tiendas_eff_inventario",
+        )
+
+        if not tiendas_eff_sel:
+            st.info("Selecciona al menos una tienda.")
+            st.stop()
+
+        filas_eff = []
+
+        for tienda in tiendas_eff_sel:
+            if str(tienda).strip().upper() == "GENERAL":
+                continue
+
+            df_inv_tienda = inv_periodo_eff[
+                inv_periodo_eff["Departamento"].astype(str).str.strip()
+                == str(tienda).strip()
+            ]
+
+            inv_medio = float(
+                pd.to_numeric(
+                    df_inv_tienda["Inventario"], errors="coerce"
+                ).dropna().mean()
+            ) if not df_inv_tienda.empty else 0.0
+
+            df_periodo = obtener_filtro_datos(df, ano, meses_sel, [tienda])
+            res = calcular_resultados(df_periodo)
+
+            ventas = float(res.get("Ventas", 0.0))
+            coste = float(res.get("Coste Ventas", 0.0))
+            margen = float(res.get("MARGEN BRUTO", 0.0))
+
+            ventas_stock = ventas / inv_medio if abs(inv_medio) > 1e-12 else None
+            margen_stock = margen / inv_medio if abs(inv_medio) > 1e-12 else None
+            rotacion_stock = abs(coste) / inv_medio if abs(inv_medio) > 1e-12 else None
+
+            filas_eff.append(
+                {
+                    "Tienda": tienda,
+                    "Inventario Medio": inv_medio,
+                    "Ventas / Stock": ventas_stock,
+                    "Margen / Stock": margen_stock,
+                    "Rotación Coste / Stock": rotacion_stock,
+                }
+            )
+
+        df_eff_num = pd.DataFrame(filas_eff)
+
+        if df_eff_num.empty:
+            st.info("No hay tiendas operativas para calcular eficiencia.")
+            st.stop()
+
+        # Ranking por Margen/Stock: mayor es mejor.
+        df_eff_num["Ranking"] = (
+            df_eff_num["Margen / Stock"]
+            .rank(method="min", ascending=False)
+        )
+
+        df_eff_num = df_eff_num.sort_values(
+            ["Ranking", "Tienda"]
+        ).reset_index(drop=True)
+
+        df_eff_disp = df_eff_num.copy()
+        df_eff_disp["Inventario Medio"] = df_eff_disp["Inventario Medio"].apply(
+            formato_moneda
+        )
+
+        for col in ["Ventas / Stock", "Margen / Stock", "Rotación Coste / Stock"]:
+            df_eff_disp[col] = df_eff_disp[col].apply(
+                lambda x: (
+                    f"{float(x):,.2f}"
+                    .replace(",", "X")
+                    .replace(".", ",")
+                    .replace("X", ".")
+                ) if pd.notna(x) else ""
+            )
+
+        df_eff_disp["Ranking"] = df_eff_disp["Ranking"].apply(
+            lambda x: str(int(x)) if pd.notna(x) else ""
+        )
+
+        st.subheader(f"Eficiencia de Inventario — {ano}")
+        st.caption(
+            "Ranking de eficiencia según Margen Bruto / Inventario Medio. "
+            "Cuanto mayor sea Margen / Stock, mejor aprovechamiento del inventario."
+        )
+
+        render_aggrid_table(
+            df_eff_disp,
+            modo="auto",
+            altura_fila=32,
+            altura_cabecera=38,
+            clave_preferencias="eficiencia_inventario",
+        )
+
+        descargar_excel(
+            df_eff_num,
+            "Eficiencia Inventario",
+            f"Eficiencia_Inventario_{ano}.xlsx",
+            "Descargar eficiencia en Excel",
+        )
         st.stop()
 
     inv_periodo = df_inventario[
