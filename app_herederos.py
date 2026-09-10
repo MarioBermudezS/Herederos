@@ -1,11 +1,11 @@
 import io
 import pandas as pd
 import streamlit as st
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS optimizado para eliminar márgenes y aprovechar el 100% de la pantalla
+# CSS optimizado para expansión total al 100%
 st.markdown(
     """
     <style>
@@ -103,12 +103,68 @@ meses_sel = st.sidebar.multiselect(
     "Selecciona mes(es)", meses_disponibles, default=meses_disponibles[:1]
 )
 
+campos_destacados = [
+    "MARGEN BRUTO",
+    "R. B.",
+    "Ingresos Operativos",
+    "TOTAL GASTOS OPERATIVOS",
+    "GASTOS ESTRUCTURA",
+    "B.A.I.I.",
+    "RDO. FINANCIERO",
+    "Resultados Extraordinarios",
+    "B.A.I.",
+    "TOTAL GRUPO",
+]
+
+# JsCode para aplicar estilos condicionales y negritas profesionales en AgGrid
+cell_style_jscode = JsCode("""
+function(params) {
+    var rowNode = params.node;
+    var colDef = params.colDef;
+    var val = params.value;
+    var field = colDef.field;
+    var rowLabel = rowNode.data.Resultados || '';
+
+    var isDestacado = [
+        "MARGEN BRUTO", "R. B.", "Ingresos Operativos", 
+        "TOTAL GASTOS OPERATIVOS", "GASTOS ESTRUCTURA", 
+        "B.A.I.I.", "RDO. FINANCIERO", "Resultados Extraordinarios", "B.A.I.", "TOTAL GRUPO"
+    ].includes(rowLabel);
+
+    var isTotalCol = field === "Total" || field.startsWith("Total ");
+    var isFirstCol = colDef.pinned === "left" || colDef.field === "Resultados";
+
+    var style = {
+        'textAlign': isFirstCol ? 'left' : 'right',
+        'fontWeight': (isDestacado || isTotalCol) ? 'bold' : 'normal'
+    };
+
+    if (isTotalCol) {
+        style['backgroundColor'] = '#d1fae5';
+    } else if (isDestacado) {
+        style['backgroundColor'] = '#eef2f7';
+    }
+
+    // Colorear negativos en rojo o variaciones
+    if (typeof val === 'string' && val.includes('-') && !val.includes('%')) {
+        style['color'] = '#dc2626';
+        style['fontWeight'] = 'bold';
+    } else if (field === "Var. pp" || field === "Var. %" || field === "Var. €") {
+        if (typeof val === 'string' && !val.includes('-') && val !== '-' && val !== '0,00%') {
+            style['color'] = '#16a34a';
+            style['fontWeight'] = 'bold';
+        } else if (typeof val === 'string' && val.includes('-')) {
+            style['color'] = '#dc2626';
+            style['fontWeight'] = 'bold';
+        }
+    }
+
+    return style;
+}
+""")
+
 
 def render_tabla_aggrid(df_display):
-  """Función profesional que renderiza la tabla usando AgGrid
-
-  garantizando autoajuste, alineación correcta, columna fija y altura controlada.
-  """
   gb = GridOptionsBuilder.from_dataframe(df_display)
   gb.configure_default_column(
       resizable=True,
@@ -116,24 +172,20 @@ def render_tabla_aggrid(df_display):
       sortable=False,
       editable=False,
       suppressMenu=True,
+      cellStyle=cell_style_jscode,
   )
 
-  # Fijar la primera columna de conceptos / resultados a la izquierda
   if len(df_display.columns) > 0:
     first_col = df_display.columns[0]
     gb.configure_column(
         first_col,
         pinned="left",
-        width=220,
-        minWidth=190,
-        cellStyle={"fontWeight": "bold", "textAlign": "left"},
+        width=230,
+        minWidth=200,
     )
 
-  # Alinear el resto de columnas numéricas a la derecha
   for col in df_display.columns[1:]:
-    gb.configure_column(
-        col, width=125, minWidth=105, cellStyle={"textAlign": "right"}
-    )
+    gb.configure_column(col, width=125, minWidth=105)
 
   gb.configure_grid_options(
       suppressRowClickSelection=True,
@@ -143,7 +195,7 @@ def render_tabla_aggrid(df_display):
   AgGrid(
       df_display,
       gridOptions=gridOptions,
-      height=550,  # Altura fija con scroll vertical para ver todas las filas perfectamente
+      height=580,
       update_mode=GridUpdateMode.NO_UPDATE,
       fit_columns_on_grid_load=True,
       allow_unsafe_jscode=True,
