@@ -149,7 +149,18 @@ def obtener_archivo_datos() -> str:
         if p not in candidatos:
             candidatos.append(p)
 
-    # Primero buscar uno que contenga ambas hojas.
+    # Primero buscar una versión completa con BS, Tiendas e Inventario.
+    for archivo in candidatos:
+        if not archivo.exists():
+            continue
+        try:
+            hojas = pd.ExcelFile(archivo).sheet_names
+            if all(h in hojas for h in ["BS", "Tiendas", "Inventario"]):
+                return str(archivo)
+        except Exception:
+            pass
+
+    # Compatibilidad con versiones anteriores sin Inventario.
     for archivo in candidatos:
         if not archivo.exists():
             continue
@@ -212,6 +223,223 @@ def load_tiendas_m2() -> Dict[str, float]:
         str(r["Departamento"]).strip(): float(r["m2"])
         for _, r in t.iterrows()
         if pd.notna(r["Departamento"]) and pd.notna(r["m2"]) and float(r["m2"]) > 0
+    }
+
+
+
+@st.cache_data
+def load_inventario() -> pd.DataFrame:
+    """
+    Lee la hoja Inventario organizada por bloques de año.
+
+    Formato esperado:
+      fila con el año
+      fila con Departamento + Enero...Diciembre
+      filas de tiendas
+      fila de total sin nombre
+
+    Devuelve:
+      Año | Mes | Departamento | Inventario
+    """
+    archivo_datos = obtener_archivo_datos()
+
+    try:
+        raw = pd.read_excel(archivo_datos, sheet_name="Inventario", header=None)
+    except Exception:
+        return pd.DataFrame(
+            columns=["Año", "Mes", "Departamento", "Inventario"]
+        )
+
+    registros = []
+    ano_actual = None
+    mapa_meses = {m.upper(): m for m in MESES_ORDEN}
+
+    for i in range(len(raw)):
+        primera = raw.iat[i, 0] if raw.shape[1] else None
+
+        # Inicio de bloque anual.
+        try:
+            ano_posible = int(float(primera))
+            if 2000 <= ano_posible <= 2100:
+                ano_actual = ano_posible
+                continue
+        except (TypeError, ValueError):
+            pass
+
+        if ano_actual is None:
+            continue
+
+        if str(primera).strip().upper() != "DEPARTAMENTO":
+            continue
+
+        cabeceras = []
+        for j in range(1, raw.shape[1]):
+            valor = raw.iat[i, j]
+            cabeceras.append(
+                mapa_meses.get(str(valor).strip().upper())
+            )
+
+        k = i + 1
+        while k < len(raw):
+            dep = raw.iat[k, 0]
+
+            # Si aparece otro año, termina el bloque actual.
+            try:
+                ano_siguiente = int(float(dep))
+                if 2000 <= ano_siguiente <= 2100:
+                    break
+            except (TypeError, ValueError):
+                pass
+
+            dep_txt = "" if pd.isna(dep) else str(dep).strip()
+
+            # La fila total del Excel no se importa; Python recalcula siempre.
+            if not dep_txt or dep_txt.upper() in {"TOTAL", "DEPARTAMENTO"}:
+                k += 1
+                continue
+
+            for j, mes in enumerate(cabeceras, start=1):
+                if not mes or j >= raw.shape[1]:
+                    continue
+
+                valor = pd.to_numeric(raw.iat[k, j], errors="coerce")
+                if pd.notna(valor):
+                    registros.append(
+                        {
+                            "Año": ano_actual,
+                            "Mes": mes,
+                            "Departamento": dep_txt,
+                            "Inventario": float(valor),
+                        }
+                    )
+            k += 1
+
+    inventario = pd.DataFrame(registros)
+    if inventario.empty:
+        return pd.DataFrame(
+            columns=["Año", "Mes", "Departamento", "Inventario"]
+        )
+
+    inventario["Departamento"] = (
+        inventario["Departamento"].astype("string").str.strip()
+    )
+    inventario["Año"] = pd.to_numeric(inventario["Año"], errors="coerce")
+    inventario["Inventario"] = pd.to_numeric(
+        inventario["Inventario"], errors="coerce"
+    )
+
+    return inventario
+
+
+def obtener_ultimos_12_periodos(
+    ano: int, mes: str
+) -> List[Tuple[int, str]]:
+    """
+    Devuelve 12 meses terminando en el mes analizado.
+    Ejemplo: julio-2026 => agosto-2025 ... julio-2026.
+    """
+    if mes not in MESES_ORDEN:
+        return []
+
+    indice_absoluto = int(ano) * 12 + MESES_ORDEN.index(mes)
+    periodos = []
+
+    for desplazamiento in range(11, -1, -1):
+        idx = indice_absoluto - desplazamiento
+        periodos.append((idx // 12, MESES_ORDEN[idx % 12]))
+
+    return periodos
+
+
+def calcular_cobertura_inventario(
+    df_datos: pd.DataFrame,
+    tienda: str,
+    ano: int,
+    mes: str,
+    inventario_final: float,
+) -> Dict[str, object]:
+    """
+    Método de rotación/cobertura:
+
+    - Media mensual de ventas de los últimos 12 meses, incluido el analizado.
+    - Margen bruto acumulado de la tienda desde enero hasta ese mes.
+    - Venta media a coste = Venta media 12M * (1 - margen acumulado).
+    - Meses de stock = Inventario final / Venta media mensual a coste.
+
+    Si no existen 12 meses completos de ventas, no se calcula.
+    """
+    mensaje_12m = "Imposible calcular media de ventas últimos 12 meses"
+
+    periodos = obtener_ultimos_12_periodos(ano, mes)
+    if len(periodos) != 12:
+        return {
+            "venta_media_12m": None,
+            "margen_acumulado": None,
+            "venta_media_coste": None,
+            "meses_stock": None,
+            "estado": mensaje_12m,
+        }
+
+    ventas_mensuales = []
+
+    for a, m in periodos:
+        df_mes = df_datos[
+            (df_datos["Año"] == a)
+            & (df_datos["Mes"] == m)
+            & (
+                df_datos["Departamento"].astype(str).str.strip()
+                == str(tienda).strip()
+            )
+        ]
+
+        ventas_rows = df_mes[df_mes["Resultados"] == "Ventas"]
+
+        # Debe existir información de ventas para cada uno de los 12 meses.
+        if ventas_rows.empty:
+            return {
+                "venta_media_12m": None,
+                "margen_acumulado": None,
+                "venta_media_coste": None,
+                "meses_stock": None,
+                "estado": mensaje_12m,
+            }
+
+        ventas_mes = float(
+            pd.to_numeric(
+                ventas_rows["Importe D"], errors="coerce"
+            ).fillna(0).sum()
+        )
+        ventas_mensuales.append(ventas_mes)
+
+    venta_media_12m = sum(ventas_mensuales) / 12.0
+
+    # Margen acumulado del ejercicio de la tienda hasta el mes analizado.
+    meses_acumulados = MESES_ORDEN[: MESES_ORDEN.index(mes) + 1]
+    df_acumulado = obtener_filtro_datos(
+        df_datos, ano, meses_acumulados, [tienda]
+    )
+    resultados_acumulados = calcular_resultados(df_acumulado)
+    margen_acumulado = float(
+        resultados_acumulados.get("R. B.", 0.0)
+    )
+
+    venta_media_coste = venta_media_12m * (1.0 - margen_acumulado)
+
+    if abs(venta_media_coste) < 1e-12:
+        return {
+            "venta_media_12m": venta_media_12m,
+            "margen_acumulado": margen_acumulado,
+            "venta_media_coste": venta_media_coste,
+            "meses_stock": None,
+            "estado": "Imposible calcular: venta media a coste igual a cero",
+        }
+
+    return {
+        "venta_media_12m": venta_media_12m,
+        "margen_acumulado": margen_acumulado,
+        "venta_media_coste": venta_media_coste,
+        "meses_stock": float(inventario_final) / venta_media_coste,
+        "estado": "",
     }
 
 
@@ -1195,6 +1423,7 @@ modulo_principal = st.sidebar.radio(
         "Cuenta de Resultados Completa",
         "Análisis Específico de R.B. (Margen Bruto)",
         "Informe KPI (% sobre Ventas)",
+        "Análisis de Inventario y Rotación",
     ],
 )
 
@@ -1968,7 +2197,7 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
 # MÓDULO 3: CUENTA DE RESULTADOS COMPLETA
 # =====================================================================
 
-else:
+elif modulo_principal == "Cuenta de Resultados Completa":
     modo_analisis = st.sidebar.radio(
         "Tipo de Análisis",
         [
@@ -2151,3 +2380,188 @@ else:
         render_aggrid_table(df_resultado_display, modo="auto")
         descargar_excel(df_valores_numericos, "Informe", f"Informe_Resultados_{ano}.xlsx",
                        "Descargar Informe en Excel")
+
+
+# =====================================================================
+# MÓDULO 4: ANÁLISIS DE INVENTARIO Y ROTACIÓN
+# =====================================================================
+
+elif modulo_principal == "Análisis de Inventario y Rotación":
+    st.header("Análisis de Inventario y Rotación")
+
+    df_inventario = load_inventario()
+
+    if df_inventario.empty:
+        st.error(
+            "No se ha podido leer la hoja 'Inventario'. "
+            f"Archivo detectado: {obtener_archivo_datos()}"
+        )
+        st.stop()
+
+    inv_periodo = df_inventario[
+        (df_inventario["Año"] == ano)
+        & (df_inventario["Mes"].isin(meses_sel))
+    ].copy()
+
+    if inv_periodo.empty:
+        st.info(
+            "No hay inventario informado para el año y los meses seleccionados."
+        )
+        st.stop()
+
+    # Todas las tiendas de inventario salvo General y las que estén a cero
+    # en todo el periodo solicitado.
+    tiendas_inv = []
+
+    for tienda in sorted(
+        inv_periodo["Departamento"]
+        .dropna()
+        .astype(str)
+        .str.strip()
+        .unique()
+    ):
+        if tienda.upper() == "GENERAL":
+            continue
+
+        valores_tienda = pd.to_numeric(
+            inv_periodo.loc[
+                inv_periodo["Departamento"].astype(str).str.strip()
+                == tienda,
+                "Inventario",
+            ],
+            errors="coerce",
+        ).fillna(0)
+
+        if valores_tienda.abs().sum() > 1e-12:
+            tiendas_inv.append(tienda)
+
+    tiendas_seleccionadas_inv = st.sidebar.multiselect(
+        "Selecciona tiendas de inventario",
+        tiendas_inv,
+        default=tiendas_inv,
+    )
+
+    if not tiendas_seleccionadas_inv or not meses_sel:
+        st.info("Selecciona al menos una tienda y un mes.")
+        st.stop()
+
+    filas_display = []
+    filas_excel = []
+
+    for mes in meses_sel:
+        for tienda in tiendas_seleccionadas_inv:
+            fila_inv = df_inventario[
+                (df_inventario["Año"] == ano)
+                & (df_inventario["Mes"] == mes)
+                & (
+                    df_inventario["Departamento"].astype(str).str.strip()
+                    == str(tienda).strip()
+                )
+            ]
+
+            if fila_inv.empty:
+                continue
+
+            inventario_final = float(
+                pd.to_numeric(
+                    fila_inv["Inventario"], errors="coerce"
+                ).fillna(0).sum()
+            )
+
+            calculo = calcular_cobertura_inventario(
+                df,
+                tienda,
+                ano,
+                mes,
+                inventario_final,
+            )
+
+            venta_media_12m = calculo["venta_media_12m"]
+            margen_acumulado = calculo["margen_acumulado"]
+            venta_media_coste = calculo["venta_media_coste"]
+            meses_stock = calculo["meses_stock"]
+            estado = calculo["estado"]
+
+            meses_stock_txt = ""
+            if meses_stock is not None:
+                meses_stock_txt = (
+                    f"{meses_stock:,.2f}"
+                    .replace(",", "X")
+                    .replace(".", ",")
+                    .replace("X", ".")
+                )
+
+            filas_display.append(
+                {
+                    "Tienda": tienda,
+                    "Mes": mes,
+                    "Inventario Final": formato_moneda(inventario_final),
+                    "Venta Media 12M": (
+                        formato_moneda(venta_media_12m)
+                        if venta_media_12m is not None
+                        else ""
+                    ),
+                    "Margen Acumulado": (
+                        formato_porcentaje(margen_acumulado)
+                        if margen_acumulado is not None
+                        else ""
+                    ),
+                    "Venta Media a Coste": (
+                        formato_moneda(venta_media_coste)
+                        if venta_media_coste is not None
+                        else ""
+                    ),
+                    "Meses de Stock": meses_stock_txt,
+                    "Estado": estado,
+                }
+            )
+
+            filas_excel.append(
+                {
+                    "Tienda": tienda,
+                    "Año": ano,
+                    "Mes": mes,
+                    "Inventario Final": inventario_final,
+                    "Venta Media 12M": venta_media_12m,
+                    "Margen Acumulado": margen_acumulado,
+                    "Venta Media a Coste": venta_media_coste,
+                    "Meses de Stock": meses_stock,
+                    "Estado": estado,
+                }
+            )
+
+    if not filas_display:
+        st.info(
+            "No hay datos de inventario para las tiendas y meses seleccionados."
+        )
+        st.stop()
+
+    df_rotacion_display = pd.DataFrame(filas_display)
+    df_rotacion_excel = pd.DataFrame(filas_excel)
+
+    nombre_meses_inv = ", ".join(meses_sel)
+    st.subheader(
+        f"Cobertura de Inventario — {nombre_meses_inv} {ano}"
+    )
+
+    st.caption(
+        "Meses de Stock = Inventario final ÷ Venta media mensual de los "
+        "últimos 12 meses a coste. La venta a coste utiliza el margen bruto "
+        "acumulado de cada tienda desde enero hasta el mes analizado."
+    )
+
+    render_aggrid_table(
+        df_rotacion_display,
+        modo="auto",
+        altura_fila=32,
+        altura_cabecera=38,
+        clave_preferencias="inventario_rotacion",
+    )
+
+    descargar_excel(
+        df_rotacion_excel,
+        "Rotacion",
+        f"Inventario_Rotacion_{ano}.xlsx",
+        "Descargar análisis de inventario en Excel",
+    )
+
