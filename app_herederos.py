@@ -94,7 +94,7 @@ meses_orden = [
 ]
 meses_excel = (
     df["Mes"].dropna().unique().tolist() if "Mes" in df.columns else ["Enero"]
-)
+]
 meses_disponibles = [m for m in meses_orden if m in meses_excel]
 if not meses_disponibles:
   meses_disponibles = meses_excel
@@ -116,7 +116,7 @@ campos_destacados = [
     "TOTAL GRUPO",
 ]
 
-# JsCode avanzado con estilos, negritas, destacados y coloreado condicional completo
+# JsCode avanzado para estilos, negritas, totales y sombreados condicionales
 cell_style_jscode = JsCode("""
 function(params) {
     var rowNode = params.node;
@@ -149,9 +149,11 @@ function(params) {
         if (field === "Var. pp" || field === "Var. %" || field === "Var. €") {
             if (!val.includes('-') && val !== '-' && val !== '0,00%' && val !== '0,00 pp') {
                 style['color'] = '#16a34a';
+                style['backgroundColor'] = '#dcfce7';
                 style['fontWeight'] = 'bold';
             } else if (val.includes('-')) {
                 style['color'] = '#dc2626';
+                style['backgroundColor'] = '#fee2e2';
                 style['fontWeight'] = 'bold';
             }
         } else if (val.includes('-') && !val.includes('%') && !val.includes('pp')) {
@@ -188,16 +190,19 @@ def render_tabla_aggrid(df_display):
   for col in df_display.columns[1:]:
     gb.configure_column(col, width=125, minWidth=105)
 
-  # domLayout='autoHeight' hace que la tabla se expanda por completo mostrando todas las filas sin scroll interno
   gb.configure_grid_options(
-      domLayout="autoHeight",
       suppressRowClickSelection=True,
   )
   gridOptions = gb.build()
 
+  # Altura exacta calculada por filas para mostrar todo el informe de un vistazo sin scroll interno
+  row_count = len(df_display)
+  calculated_height = (row_count + 1) * 36 + 30
+
   AgGrid(
       df_display,
       gridOptions=gridOptions,
+      height=calculated_height,
       update_mode=GridUpdateMode.NO_UPDATE,
       fit_columns_on_grid_load=True,
       allow_unsafe_jscode=True,
