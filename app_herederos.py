@@ -84,7 +84,17 @@ def formato_porcentaje(valor: float, decimales: int = 2) -> str:
     return f"{valor * 100:,.{decimales}f}%".replace(",", "X").replace(".", ",").replace("X", ".")
 
 def formato_moneda(valor: float, decimales: int = 2) -> str:
-    """Convierte un número a string formateado como euros con locale español."""
+    """
+    Convierte un número a euros con formato español.
+    Los importes iguales a cero se muestran en blanco en pantalla.
+    El valor numérico interno no se modifica.
+    """
+    try:
+        if pd.isna(valor) or abs(float(valor)) < 1e-12:
+            return ""
+    except (TypeError, ValueError):
+        pass
+
     return f"{valor:,.{decimales}f} €".replace(",", "X").replace(".", ",").replace("X", ".")
 
 def formato_variacion_pp(valor: float) -> str:
