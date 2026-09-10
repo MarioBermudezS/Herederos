@@ -601,7 +601,9 @@ def render_aggrid_table(
         df_display,
         gridOptions=gb.build(),
         update_mode=GridUpdateMode.NO_UPDATE,
-        fit_columns_on_grid_load=False,
+        # Con pocas columnas se reparte automáticamente el ancho de pantalla.
+        # Con muchas se conserva el ancho calculado para evitar cortar cifras.
+        fit_columns_on_grid_load=(len(df_display.columns) <= 6),
         allow_unsafe_jscode=True,
         theme="balham",
         height=altura_tabla,
@@ -840,7 +842,9 @@ def render_aggrid_rb_horizontal(
         df_display,
         gridOptions=gb.build(),
         update_mode=GridUpdateMode.NO_UPDATE,
-        fit_columns_on_grid_load=False,
+        # Con pocas columnas se reparte automáticamente el ancho de pantalla.
+        # Con muchas se conserva el ancho calculado para evitar cortar cifras.
+        fit_columns_on_grid_load=(len(df_display.columns) <= 6),
         allow_unsafe_jscode=True,
         theme="balham",
         height=altura_tabla,
