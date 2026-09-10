@@ -251,14 +251,13 @@ def load_tiendas_m2() -> Dict[str, float]:
 @st.cache_data
 def load_margenes_totales_acumulados() -> pd.DataFrame:
     """
-    Lee la hoja MargenesTotalesAcumulados del ERP.
+    Lee de forma estricta la hoja MargenesTotalesAcumulados del ERP.
 
-    Estructura admitida:
-        [vacío] | 2026
-        Departamento | Enero | Febrero | ... | Diciembre
-        Totales      | 0,3901 | 0,3918 | ...
-
-    Se respetan los márgenes oficiales del ERP sin recalcularlos desde BS.
+    Para cada bloque anual:
+      - localiza el año (2024, 2025, 2026, etc.)
+      - localiza la fila de cabeceras con Enero...Diciembre
+      - localiza la fila TOTAL/TOTALES inmediatamente asociada
+      - relaciona cada mes con su valor exacto
 
     Devuelve:
         Año | Mes | Margen Acumulado Total
@@ -277,15 +276,17 @@ def load_margenes_totales_acumulados() -> pd.DataFrame:
         )
 
     registros = []
-    ano_actual = None
     mapa_meses = {m.upper(): m for m in MESES_ORDEN}
 
-    for i in range(len(raw)):
-        # El año puede estar en la primera o segunda columna.
-        for j_ano in range(min(2, raw.shape[1])):
-            valor_ano = raw.iat[i, j_ano]
+    i = 0
+    while i < len(raw):
+        ano_actual = None
+
+        # El año puede estar en cualquiera de las primeras columnas.
+        for j in range(min(3, raw.shape[1])):
+            valor = raw.iat[i, j]
             try:
-                ano_posible = int(float(valor_ano))
+                ano_posible = int(float(valor))
                 if 2000 <= ano_posible <= 2100:
                     ano_actual = ano_posible
                     break
@@ -293,36 +294,96 @@ def load_margenes_totales_acumulados() -> pd.DataFrame:
                 pass
 
         if ano_actual is None:
+            i += 1
             continue
 
-        primera = raw.iat[i, 0] if raw.shape[1] else None
-        primera_txt = "" if pd.isna(primera) else str(primera).strip().upper()
+        # Buscar la fila de cabeceras de meses dentro del bloque de ese año.
+        fila_cabecera = None
+        columnas_mes = {}
 
-        if primera_txt not in {"TOTALES", "TOTAL"}:
+        for h in range(i + 1, min(i + 6, len(raw))):
+            encontrados = {}
+            for j in range(raw.shape[1]):
+                valor = raw.iat[h, j]
+                if pd.isna(valor):
+                    continue
+                mes = mapa_meses.get(str(valor).strip().upper())
+                if mes:
+                    encontrados[j] = mes
+
+            if encontrados:
+                fila_cabecera = h
+                columnas_mes = encontrados
+                break
+
+        if fila_cabecera is None:
+            i += 1
             continue
 
-        # La fila anterior contiene los nombres de los meses.
-        if i == 0:
-            continue
+        # Buscar la fila TOTAL/TOTALES asociada a esa cabecera,
+        # sin cruzar al siguiente bloque anual.
+        fila_totales = None
+        for t in range(fila_cabecera + 1, min(fila_cabecera + 15, len(raw))):
+            # Si aparece otro año antes de Totales, abandonar este bloque.
+            nuevo_ano = False
+            for j in range(min(3, raw.shape[1])):
+                valor = raw.iat[t, j]
+                try:
+                    ano_posible = int(float(valor))
+                    if 2000 <= ano_posible <= 2100:
+                        nuevo_ano = True
+                        break
+                except (TypeError, ValueError):
+                    pass
+            if nuevo_ano:
+                break
 
-        for j in range(1, raw.shape[1]):
-            cabecera = raw.iat[i - 1, j]
-            mes = mapa_meses.get(str(cabecera).strip().upper())
+            primera = raw.iat[t, 0] if raw.shape[1] else None
+            primera_txt = "" if pd.isna(primera) else str(primera).strip().upper()
 
-            if not mes:
-                continue
+            if primera_txt in {"TOTAL", "TOTALES"}:
+                fila_totales = t
+                break
 
-            valor = pd.to_numeric(raw.iat[i, j], errors="coerce")
-            if pd.notna(valor):
-                registros.append(
-                    {
-                        "Año": ano_actual,
-                        "Mes": mes,
-                        "Margen Acumulado Total": float(valor),
-                    }
+        if fila_totales is not None:
+            for col, mes in columnas_mes.items():
+                valor = pd.to_numeric(
+                    raw.iat[fila_totales, col],
+                    errors="coerce",
                 )
+                if pd.notna(valor):
+                    margen = float(valor)
 
-    return pd.DataFrame(registros)
+                    # El ERP normalmente guarda 42,72 % como 0,4272.
+                    # Si viniera como 42,72, se normaliza.
+                    if abs(margen) > 1.0:
+                        margen = margen / 100.0
+
+                    registros.append(
+                        {
+                            "Año": ano_actual,
+                            "Mes": mes,
+                            "Margen Acumulado Total": margen,
+                        }
+                    )
+
+        i = max(i + 1, (fila_totales + 1) if fila_totales is not None else i + 1)
+
+    df_margenes = pd.DataFrame(registros)
+
+    if df_margenes.empty:
+        return pd.DataFrame(
+            columns=["Año", "Mes", "Margen Acumulado Total"]
+        )
+
+    # Si hubiera duplicados accidentales, conservar el último valor de cada mes/año.
+    df_margenes = (
+        df_margenes
+        .drop_duplicates(subset=["Año", "Mes"], keep="last")
+        .reset_index(drop=True)
+    )
+
+    return df_margenes
 
 
 @st.cache_data
