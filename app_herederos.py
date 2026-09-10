@@ -2853,7 +2853,7 @@ elif modulo_principal == "Análisis de Inventario y Rotación":
 
             ventas = float(res.get("Ventas", 0.0))
             coste = float(res.get("Coste Ventas", 0.0))
-            margen = float(res.get("MARGEN BRUTO", 0.0))
+            margen = float(res.get("MARGEN BRUTO", res.get("R. B.", 0.0)))
 
             ventas_stock = ventas / inv_medio if abs(inv_medio) > 1e-12 else None
             margen_stock = margen / inv_medio if abs(inv_medio) > 1e-12 else None
@@ -2863,6 +2863,9 @@ elif modulo_principal == "Análisis de Inventario y Rotación":
                 {
                     "Tienda": tienda,
                     "Inventario Medio": inv_medio,
+                    "Ventas Periodo": ventas,
+                    "Margen Bruto Periodo": margen,
+                    "Coste Ventas Periodo": coste,
                     "Ventas / Stock": ventas_stock,
                     "Margen / Stock": margen_stock,
                     "Rotación Coste / Stock": rotacion_stock,
@@ -2875,20 +2878,96 @@ elif modulo_principal == "Análisis de Inventario y Rotación":
             st.info("No hay tiendas operativas para calcular eficiencia.")
             st.stop()
 
-        # Ranking por Margen/Stock: mayor es mejor.
+        # TOTAL EMPRESA:
+        # Inventario medio = media de los inventarios totales mensuales,
+        # incluyendo General. Ventas/coste se calculan sobre toda la empresa.
+        totales_inv_mes = (
+            inv_periodo_eff.groupby("Mes", as_index=False)["Inventario"].sum()
+        )
+        inv_medio_total = float(
+            pd.to_numeric(totales_inv_mes["Inventario"], errors="coerce")
+            .dropna()
+            .mean()
+        ) if not totales_inv_mes.empty else 0.0
+
+        df_periodo_total = obtener_filtro_datos(df, ano, meses_sel, None)
+        res_total = calcular_resultados(df_periodo_total)
+        ventas_total = float(res_total.get("Ventas", 0.0))
+        coste_total = float(res_total.get("Coste Ventas", 0.0))
+
+        # Para el TOTAL, el margen acumulado oficial del ERP manda.
+        # Se toma el margen acumulado correspondiente al último mes seleccionado.
+        df_margenes_erp = load_margenes_totales_acumulados()
+        meses_validos = [m for m in MESES_ORDEN if m in meses_sel]
+        ultimo_mes = meses_validos[-1] if meses_validos else None
+        margen_pct_total = None
+
+        if ultimo_mes is not None and not df_margenes_erp.empty:
+            fila_margen_erp = df_margenes_erp[
+                (df_margenes_erp["Año"] == ano)
+                & (df_margenes_erp["Mes"] == ultimo_mes)
+            ]
+            if not fila_margen_erp.empty:
+                margen_pct_total = float(
+                    fila_margen_erp["Margen Acumulado Total"].iloc[0]
+                )
+                if abs(margen_pct_total) > 1.0:
+                    margen_pct_total = margen_pct_total / 100.0
+
+        # Margen bruto TOTAL del periodo usando el margen acumulado ERP.
+        # Así el total respeta exactamente el margen oficial acumulado.
+        if margen_pct_total is not None:
+            margen_total = ventas_total * margen_pct_total
+            coste_total_erp = ventas_total - margen_total
+        else:
+            margen_total = float(res_total.get("MARGEN BRUTO", res_total.get("R. B.", 0.0)))
+            coste_total_erp = coste_total
+
+        ventas_stock_total = (
+            ventas_total / inv_medio_total if abs(inv_medio_total) > 1e-12 else None
+        )
+        margen_stock_total = (
+            margen_total / inv_medio_total if abs(inv_medio_total) > 1e-12 else None
+        )
+        rotacion_total = (
+            abs(coste_total_erp) / inv_medio_total
+            if abs(inv_medio_total) > 1e-12 else None
+        )
+
+        # Ranking solo para tiendas; TOTAL queda al final.
         df_eff_num["Ranking"] = (
             df_eff_num["Margen / Stock"]
             .rank(method="min", ascending=False)
         )
-
         df_eff_num = df_eff_num.sort_values(
             ["Ranking", "Tienda"]
         ).reset_index(drop=True)
 
+        fila_total = pd.DataFrame([{
+            "Tienda": "TOTAL",
+            "Inventario Medio": inv_medio_total,
+            "Ventas Periodo": ventas_total,
+            "Margen Bruto Periodo": margen_total,
+            "Coste Ventas Periodo": coste_total_erp,
+            "Ventas / Stock": ventas_stock_total,
+            "Margen / Stock": margen_stock_total,
+            "Rotación Coste / Stock": rotacion_total,
+            "Ranking": None,
+        }])
+
+        df_eff_num = pd.concat([df_eff_num, fila_total], ignore_index=True)
+
         df_eff_disp = df_eff_num.copy()
-        df_eff_disp["Inventario Medio"] = df_eff_disp["Inventario Medio"].apply(
-            formato_moneda
-        )
+
+        for col in [
+            "Inventario Medio",
+            "Ventas Periodo",
+            "Margen Bruto Periodo",
+            "Coste Ventas Periodo",
+        ]:
+            df_eff_disp[col] = df_eff_disp[col].apply(
+                lambda x: formato_moneda(x) if pd.notna(x) else ""
+            )
 
         for col in ["Ventas / Stock", "Margen / Stock", "Rotación Coste / Stock"]:
             df_eff_disp[col] = df_eff_disp[col].apply(
@@ -2907,8 +2986,73 @@ elif modulo_principal == "Análisis de Inventario y Rotación":
         st.subheader(f"Eficiencia de Inventario — {ano}")
         st.caption(
             "Ranking de eficiencia según Margen Bruto / Inventario Medio. "
-            "Cuanto mayor sea Margen / Stock, mejor aprovechamiento del inventario."
+            "La fila TOTAL utiliza el margen acumulado oficial del ERP del último mes seleccionado."
         )
+
+        with st.expander("ℹ️ Qué significa cada dato", expanded=False):
+            st.markdown(
+                """
+**Tienda**  
+Establecimiento analizado.
+
+**Inventario Medio**  
+Promedio del inventario final de los meses seleccionados. Indica cuánto dinero tiene inmovilizado de media la tienda en existencias.
+
+**Ventas Periodo**  
+Ventas acumuladas de la tienda durante los meses seleccionados.
+
+**Margen Bruto Periodo**  
+Margen bruto generado durante el periodo seleccionado. En la fila **TOTAL** se calcula utilizando el margen acumulado oficial del ERP del último mes seleccionado.
+
+**Coste Ventas Periodo**  
+Coste de la mercancía vendida durante el periodo. En la fila **TOTAL** se obtiene de forma coherente con el margen acumulado oficial del ERP.
+
+**Ventas / Stock**  
+Ventas del periodo divididas entre el inventario medio.  
+Ejemplo: un valor de **3,00** significa que por cada 1 € de inventario medio se han generado 3 € de ventas.
+
+**Margen / Stock**  
+Margen bruto del periodo dividido entre el inventario medio.  
+Es uno de los principales indicadores de eficiencia: cuanto **mayor** sea, mejor rendimiento económico se obtiene del stock.
+
+**Rotación Coste / Stock**  
+Coste de ventas dividido entre el inventario medio.  
+Indica cuántas veces el coste de la mercancía vendida representa el inventario medio mantenido durante el periodo.
+
+**Ranking**  
+Ordena las tiendas según **Margen / Stock**.  
+La posición **1** corresponde a la tienda que obtiene mayor margen bruto por cada euro invertido de media en inventario.
+
+**Cómo interpretar el informe**  
+Una tienda eficiente no es necesariamente la que menos stock tiene, sino la que consigue generar más ventas y, especialmente, más margen bruto con el inventario que mantiene.
+
+---
+
+### 🟢 Mejor / 🔴 Peor
+
+**Ventas / Stock**  
+🟢 **Mayor = mejor.** La tienda genera más ventas por cada euro mantenido en inventario.  
+🔴 **Menor = peor.** El stock genera relativamente pocas ventas.
+
+**Margen / Stock**  
+🟢 **Mayor = mejor.** Es el indicador principal del ranking: se obtiene más margen bruto por cada euro de inventario medio.  
+🔴 **Menor = peor.** El inventario está produciendo menos margen bruto.
+
+**Rotación Coste / Stock**  
+🟢 **En general, mayor = mayor rotación.** La mercancía se renueva más veces durante el periodo.  
+🔴 **Muy bajo = posible exceso de stock o baja salida.**  
+⚠️ Un valor excesivamente alto también debe revisarse, porque podría indicar un stock demasiado ajustado y riesgo de faltas de mercancía.
+
+**Inventario Medio**  
+No es mejor simplemente por ser más alto o más bajo. Debe analizarse junto con ventas, margen y rotación. Una tienda puede necesitar más stock porque vende mucho más.
+
+**Ranking**  
+🟢 **1 = mejor eficiencia de inventario**, según Margen / Stock.  
+Cuanto mayor sea el número del ranking, menor es el margen generado por euro de inventario respecto a las demás tiendas seleccionadas.
+
+**Importante:** los ratios deben compararse entre tiendas para el **mismo periodo seleccionado**, ya que ventas, margen y coste se acumulan durante ese periodo.
+                """
+            )
 
         render_aggrid_table(
             df_eff_disp,
