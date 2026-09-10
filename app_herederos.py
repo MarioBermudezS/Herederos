@@ -349,9 +349,14 @@ def estado_columnas_js(clave: str, autoajustar_todas: bool = False) -> JsCode:
                         setTimeout(function() {{
                             try {{
                                 const state = params.api.getColumnState();
-                                const compact = state.map(function(col) {{
+                                const compact = state.map(function(col, index) {{
                                     if (col.width && col.width > 70) {{
-                                        col.width = Math.max(55, Math.round(col.width * 0.90));
+                                        if (index === 0) {{
+                                            // Primera columna: conservar más ancho para conceptos.
+                                            col.width = Math.max(145, Math.round(col.width * 0.96));
+                                        }} else {{
+                                            col.width = Math.max(55, Math.round(col.width * 0.90));
+                                        }}
                                     }}
                                     return col;
                                 }});
@@ -616,11 +621,13 @@ def render_aggrid_table(
     for i, col in enumerate(df_display.columns):
         if i == 0:
             ancho = calcular_ancho_columna(df_display, col, 120)
+            # La primera columna contiene conceptos y necesita más espacio.
+            ancho_primera = max(ancho, 150)
             gb.configure_column(
                 col,
-                width=ancho,
-                minWidth=86,
-                maxWidth=172,
+                width=ancho_primera,
+                minWidth=145,
+                maxWidth=240,
                 cellStyle={"textAlign": "left", "fontWeight": "600"},
             )
         else:
@@ -869,11 +876,12 @@ def render_aggrid_rb_horizontal(
     for i, col in enumerate(df_display.columns):
         if col == "Mes":
             ancho = calcular_ancho_columna(df_display, col, 95)
+            ancho_primera = max(ancho, 105)
             gb.configure_column(
                 col,
-                width=ancho,
-                minWidth=72,
-                maxWidth=112,
+                width=ancho_primera,
+                minWidth=100,
+                maxWidth=145,
                 cellStyle={"textAlign": "left", "fontWeight": "600"},
             )
             continue
