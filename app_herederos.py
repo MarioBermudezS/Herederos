@@ -216,8 +216,8 @@ def calcular_resultados(df_filtrado: pd.DataFrame) -> Dict[str, float]:
 # FUNCIONES DE RENDERIZACIÓN
 # =====================================================================
 
-def render_dataframe_table(df_display: pd.DataFrame, filas_negrita: List[str] = None) -> None:
-    """Renderiza tablas con estilos - negrita en filas importantes."""
+def render_dataframe_table(df_display: pd.DataFrame, filas_negrita: List[str] = None, con_colores: bool = False) -> None:
+    """Renderiza tablas con estilos - negrita en filas importantes y colores condicionales."""
     
     def estilo_fila(row):
         if filas_negrita:
@@ -230,10 +230,26 @@ def render_dataframe_table(df_display: pd.DataFrame, filas_negrita: List[str] = 
     
     styled_df = df_display.style.apply(estilo_fila, axis=1)
     
+    # Agregar colores si es KPI
+    if con_colores:
+        # Colorear solo columnas numéricas (no la primera)
+        for col in df_display.columns[1:]:
+            try:
+                # Convertir a números para comparar
+                valores_numericos = pd.to_numeric(df_display[col], errors='coerce')
+                
+                if valores_numericos.notna().any():
+                    # Verde para máximos, rojo para mínimos
+                    styled_df = styled_df.highlight_max(subset=[col], color='#90EE90', axis=0)
+                    styled_df = styled_df.highlight_min(subset=[col], color='#FFB6C6', axis=0)
+            except:
+                pass
+    
     st.dataframe(
         styled_df,
         use_container_width=True,
         hide_index=True,
+        height=None
     )
 
 def descargar_excel(df: pd.DataFrame, nombre_hoja: str, nombre_archivo: str, etiqueta: str) -> None:
@@ -553,7 +569,7 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
         df_kpi_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
         df_kpi_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
         
-        render_dataframe_table(df_kpi_display, filas_negrita=FILAS_NEGRITA_KPI)
+        render_dataframe_table(df_kpi_display, filas_negrita=FILAS_NEGRITA_KPI, con_colores=True)
         descargar_excel(df_kpi_numericos, "Informe_KPI", f"Informe_KPI_Ventas_{ano}.xlsx",
                        "Descargar Informe KPI en Excel")
     
@@ -596,7 +612,7 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
         df_kpi_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
         df_kpi_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
         
-        render_dataframe_table(df_kpi_display, filas_negrita=FILAS_NEGRITA_KPI)
+        render_dataframe_table(df_kpi_display, filas_negrita=FILAS_NEGRITA_KPI, con_colores=True)
         descargar_excel(df_kpi_numericos, "Informe_KPI", f"Informe_KPI_Ventas_{ano}.xlsx",
                        "Descargar Informe KPI en Excel")
     
@@ -652,7 +668,7 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
         df_kpi_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
         df_kpi_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
         
-        render_dataframe_table(df_kpi_display, filas_negrita=FILAS_NEGRITA_KPI)
+        render_dataframe_table(df_kpi_display, filas_negrita=FILAS_NEGRITA_KPI, con_colores=True)
         descargar_excel(df_kpi_numericos, "Informe_KPI", f"Informe_KPI_Ventas_{ano}.xlsx",
                        "Descargar Informe KPI en Excel")
 
