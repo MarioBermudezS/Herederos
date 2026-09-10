@@ -3004,6 +3004,29 @@ Los ratios de la fila TOTAL **no se suman ni se promedian directamente**. Se vue
                 """
             )
 
+        # Gráfico: Margen / Stock por tienda
+        df_graf_cmp = df_cmp_num[
+            (df_cmp_num["Tienda"].astype(str).str.strip().str.upper() != "TOTAL")
+            & pd.to_numeric(df_cmp_num["Margen / Stock"], errors="coerce").notna()
+            & pd.to_numeric(df_cmp_num["Margen / Stock"], errors="coerce").ne(0)
+        ][["Tienda", "Margen / Stock"]].copy()
+
+        if not df_graf_cmp.empty:
+            df_graf_cmp["Margen / Stock"] = pd.to_numeric(
+                df_graf_cmp["Margen / Stock"], errors="coerce"
+            )
+            df_graf_cmp = df_graf_cmp.sort_values("Margen / Stock", ascending=False)
+
+            st.markdown("#### Margen / Stock por tienda")
+            st.caption(
+                "Cuanto mayor sea el ratio, más margen bruto genera la tienda "
+                "por cada euro mantenido de media en inventario."
+            )
+            st.bar_chart(
+                df_graf_cmp.set_index("Tienda")["Margen / Stock"],
+                use_container_width=True,
+            )
+
         render_aggrid_table(
             df_cmp_disp,
             modo="auto",
@@ -3615,6 +3638,40 @@ Cuanto mayor sea el número del ranking, menor es el margen generado por euro de
         "acumulado desde enero hasta el mes analizado. Para TOTAL se utiliza "
         "el margen acumulado oficial del ERP de la hoja MargenesTotalesAcumulados."
     )
+
+    # Gráfico: Meses de Stock por tienda del último mes seleccionado.
+    df_graf_rot = df_rotacion_excel.copy()
+    if not df_graf_rot.empty:
+        df_graf_rot["Meses de Stock"] = pd.to_numeric(
+            df_graf_rot["Meses de Stock"], errors="coerce"
+        )
+        df_graf_rot = df_graf_rot[
+            (df_graf_rot["Tienda"].astype(str).str.strip().str.upper() != "TOTAL")
+            & df_graf_rot["Meses de Stock"].notna()
+            & df_graf_rot["Meses de Stock"].ne(0)
+        ].copy()
+
+        if not df_graf_rot.empty:
+            orden_meses = {m: i for i, m in enumerate(MESES_ORDEN)}
+            df_graf_rot["_orden_mes"] = df_graf_rot["Mes"].map(orden_meses)
+            ultimo_orden = df_graf_rot["_orden_mes"].max()
+            df_graf_rot = df_graf_rot[
+                df_graf_rot["_orden_mes"] == ultimo_orden
+            ].copy()
+            df_graf_rot = df_graf_rot.sort_values(
+                "Meses de Stock", ascending=False
+            )
+
+            mes_grafico = str(df_graf_rot["Mes"].iloc[0])
+            st.markdown(f"#### Meses de Stock por tienda — {mes_grafico}")
+            st.caption(
+                "Muestra la cobertura del último mes seleccionado. "
+                "Un valor más alto indica más meses de stock disponible."
+            )
+            st.bar_chart(
+                df_graf_rot.set_index("Tienda")["Meses de Stock"],
+                use_container_width=True,
+            )
 
     render_aggrid_table(
         df_rotacion_display,
