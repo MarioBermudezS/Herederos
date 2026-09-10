@@ -228,6 +228,81 @@ def load_tiendas_m2() -> Dict[str, float]:
 
 
 @st.cache_data
+def load_margenes_totales_acumulados() -> pd.DataFrame:
+    """
+    Lee la hoja MargenesTotalesAcumulados del ERP.
+    Se respetan sus porcentajes como dato oficial, sin recalcularlos desde BS.
+
+    Devuelve:
+        Año | Mes | Margen Acumulado Total
+    """
+    archivo_datos = obtener_archivo_datos()
+    try:
+        raw = pd.read_excel(
+            archivo_datos,
+            sheet_name="MargenesTotalesAcumulados",
+            header=None,
+        )
+    except Exception:
+        return pd.DataFrame(
+            columns=["Año", "Mes", "Margen Acumulado Total"]
+        )
+
+    registros = []
+    ano_actual = None
+    mapa_meses = {m.upper(): m for m in MESES_ORDEN}
+
+    for i in range(len(raw)):
+        primera = raw.iat[i, 0] if raw.shape[1] else None
+
+        try:
+            ano_posible = int(float(primera))
+            if 2000 <= ano_posible <= 2100:
+                ano_actual = ano_posible
+                continue
+        except (TypeError, ValueError):
+            pass
+
+        if ano_actual is None:
+            continue
+
+        primera_txt = "" if pd.isna(primera) else str(primera).strip().upper()
+
+        # Admite tanto una fila "Totales" horizontal como filas Mes/Valor.
+        if primera_txt in {"TOTALES", "TOTAL"}:
+            for j in range(1, raw.shape[1]):
+                # El mes suele estar en la fila inmediatamente anterior.
+                mes = None
+                if i > 0:
+                    cab = raw.iat[i - 1, j]
+                    mes = mapa_meses.get(str(cab).strip().upper())
+                if mes:
+                    valor = pd.to_numeric(raw.iat[i, j], errors="coerce")
+                    if pd.notna(valor):
+                        registros.append(
+                            {
+                                "Año": ano_actual,
+                                "Mes": mes,
+                                "Margen Acumulado Total": float(valor),
+                            }
+                        )
+        else:
+            mes = mapa_meses.get(primera_txt)
+            if mes and raw.shape[1] > 1:
+                valor = pd.to_numeric(raw.iat[i, 1], errors="coerce")
+                if pd.notna(valor):
+                    registros.append(
+                        {
+                            "Año": ano_actual,
+                            "Mes": mes,
+                            "Margen Acumulado Total": float(valor),
+                        }
+                    )
+
+    return pd.DataFrame(registros)
+
+
+@st.cache_data
 def load_inventario() -> pd.DataFrame:
     """
     Lee la hoja Inventario organizada por bloques de año.
@@ -2543,8 +2618,12 @@ elif modulo_principal == "Análisis de Inventario y Rotación":
         )
         st.stop()
 
-    # Añadir TOTAL por cada mes solicitado. Se recalcula desde las tiendas
-    # seleccionadas; no se utiliza la fila TOTAL existente en el Excel.
+    # Añadir TOTAL por cada mes solicitado.
+    # El inventario TOTAL incluye GENERAL. La venta media TOTAL se calcula
+    # directamente con las ventas de toda la empresa de los últimos 12 meses.
+    # El margen acumulado TOTAL se toma exclusivamente del ERP.
+    df_margenes_totales = load_margenes_totales_acumulados()
+
     for mes in meses_sel:
         filas_mes = [f for f in filas_excel if f["Mes"] == mes]
         if not filas_mes:
@@ -2554,60 +2633,69 @@ elif modulo_principal == "Análisis de Inventario y Rotación":
             float(f["Inventario Final"] or 0) for f in filas_mes
         )
 
-        filas_operativas = [
-            f for f in filas_mes
-            if str(f["Tienda"]).strip().upper() != "GENERAL"
-        ]
+        periodos_total = obtener_ultimos_12_periodos(ano, mes)
+        ventas_totales_12m = []
+        historial_total_completo = len(periodos_total) == 12
 
-        ventas_validas = [
-            f for f in filas_operativas if f["Venta Media 12M"] is not None
-        ]
-        coste_valido = [
-            f for f in filas_operativas if f["Venta Media a Coste"] is not None
-        ]
+        for a, m in periodos_total:
+            df_mes_total = df[
+                (df["Año"] == a)
+                & (df["Mes"] == m)
+            ]
+            ventas_rows_total = df_mes_total[
+                df_mes_total["Resultados"] == "Ventas"
+            ]
 
-        # GENERAL aporta inventario al total, pero no exige cálculo propio.
-        # La cobertura total provisional solo es válida si todas las tiendas
-        # operativas disponen de 12 meses completos.
-        calculo_total_valido = (
-            bool(filas_operativas)
-            and len(ventas_validas) == len(filas_operativas)
-            and len(coste_valido) == len(filas_operativas)
-        )
+            if ventas_rows_total.empty:
+                historial_total_completo = False
+                break
+
+            ventas_totales_12m.append(
+                float(
+                    pd.to_numeric(
+                        ventas_rows_total["Importe D"],
+                        errors="coerce",
+                    ).fillna(0).sum()
+                )
+            )
 
         venta_media_total = (
-            sum(float(f["Venta Media 12M"]) for f in filas_operativas)
-            if calculo_total_valido
+            sum(ventas_totales_12m) / 12.0
+            if historial_total_completo
             else None
         )
-        venta_coste_total = (
-            sum(float(f["Venta Media a Coste"]) for f in filas_operativas)
-            if calculo_total_valido
-            else None
-        )
+
+        fila_margen_total = df_margenes_totales[
+            (df_margenes_totales["Año"] == ano)
+            & (df_margenes_totales["Mes"] == mes)
+        ]
 
         margen_total = None
-        if (
-            calculo_total_valido
-            and venta_media_total is not None
-            and abs(venta_media_total) > 1e-12
-        ):
-            margen_total = 1.0 - (venta_coste_total / venta_media_total)
-
-        meses_stock_total = None
-        if (
-            calculo_total_valido
-            and venta_coste_total is not None
-            and abs(venta_coste_total) > 1e-12
-        ):
-            meses_stock_total = inventario_total / venta_coste_total
-
-        estado_total = ""
-        if not calculo_total_valido:
-            estado_total = (
-                "Imposible calcular total: alguna tienda no dispone "
-                "de 12 meses completos"
+        if not fila_margen_total.empty:
+            margen_total = float(
+                fila_margen_total["Margen Acumulado Total"].iloc[0]
             )
+
+        venta_coste_total = None
+        meses_stock_total = None
+        estado_total = ""
+
+        if venta_media_total is None:
+            estado_total = (
+                "Imposible calcular media de ventas últimos 12 meses"
+            )
+        elif margen_total is None:
+            estado_total = (
+                "Imposible calcular: falta margen acumulado total del ERP"
+            )
+        else:
+            venta_coste_total = venta_media_total * (1.0 - margen_total)
+            if abs(venta_coste_total) > 1e-12:
+                meses_stock_total = inventario_total / venta_coste_total
+            else:
+                estado_total = (
+                    "Imposible calcular: venta media total a coste igual a cero"
+                )
 
         meses_stock_total_txt = ""
         if meses_stock_total is not None:
@@ -2664,8 +2752,9 @@ elif modulo_principal == "Análisis de Inventario y Rotación":
 
     st.caption(
         "Meses de Stock = Inventario final ÷ Venta media mensual de los "
-        "últimos 12 meses a coste. La venta a coste utiliza el margen bruto "
-        "acumulado de cada tienda desde enero hasta el mes analizado."
+        "últimos 12 meses a coste. Para cada tienda se utiliza su margen bruto "
+        "acumulado desde enero hasta el mes analizado. Para TOTAL se utiliza "
+        "el margen acumulado oficial del ERP de la hoja MargenesTotalesAcumulados."
     )
 
     render_aggrid_table(
