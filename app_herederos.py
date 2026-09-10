@@ -86,7 +86,7 @@ meses_orden = [
 ]
 meses_excel = (
     df["Mes"].dropna().unique().tolist() if "Mes" in df.columns else ["Enero"]
-]
+)
 meses_disponibles = [m for m in meses_orden if m in meses_excel]
 if not meses_disponibles:
   meses_disponibles = meses_excel
@@ -108,7 +108,6 @@ campos_destacados = [
     "TOTAL GRUPO",
 ]
 
-# JsCode avanzado definido de forma limpia
 js_string = """
 function(params) {
     var rowNode = params.node;
@@ -746,7 +745,7 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
         mask_total_meses = (
             (df["Año"] == ano)
             & (df["Mes"].isin(meses_sel))
-            & (df["Departamento"].isin(tienda_unica))
+            & (df["Departamento"] == tienda_unica)
         )
         datos_fuente["Total"] = calcular_resultados(df[mask_total_meses])
 
@@ -1120,7 +1119,7 @@ else:
         mask_total_meses = (
             (df["Año"] == ano)
             & (df["Mes"].isin(meses_sel))
-            & (df["Departamento"].isin(tienda_unica))
+            & (df["Departamento"] == tienda_unica)
         )
         datos_fuente["Total"] = calcular_resultados(df[mask_total_meses])
 
