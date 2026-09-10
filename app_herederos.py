@@ -1409,29 +1409,75 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
         ],
     )
     
-    # Selección de tiendas/meses
+    # Selección de tiendas/meses.
+    # En selección múltiple, GENERAL y las tiendas sin movimiento quedan
+    # desmarcadas por defecto, pero siguen disponibles para selección expresa.
+    def tiendas_kpi_con_datos() -> List[str]:
+        tiendas_default = []
+
+        for tienda in departamentos_disponibles:
+            if str(tienda).strip().upper() == "GENERAL":
+                continue
+
+            df_tienda = obtener_filtro_datos(df, ano, meses_sel, [tienda])
+
+            columnas_importe = [
+                c for c in df_tienda.columns
+                if c not in {"Año", "Mes", "Departamento", "Resultados"}
+                and pd.api.types.is_numeric_dtype(df_tienda[c])
+            ]
+
+            if columnas_importe:
+                tiene_datos = (
+                    df_tienda[columnas_importe]
+                    .fillna(0)
+                    .abs()
+                    .to_numpy()
+                    .sum() > 1e-12
+                )
+            else:
+                tiene_datos = not df_tienda.empty
+
+            if tiene_datos:
+                tiendas_default.append(tienda)
+
+        return tiendas_default
+
+    tiendas_default_kpi = tiendas_kpi_con_datos()
+
     if modo_analisis == "Comparativa Multi-Tienda (Totales)":
         tiendas = st.sidebar.multiselect(
             "Selecciona tiendas a comparar",
             departamentos_disponibles,
-            default=departamentos_disponibles[:2]
-            if len(departamentos_disponibles) >= 2
-            else departamentos_disponibles,
+            default=tiendas_default_kpi,
+            help=(
+                "GENERAL y las tiendas sin datos se excluyen por defecto. "
+                "Puedes seleccionarlas expresamente si quieres incluirlas."
+            ),
         )
     else:
         tipo_consulta = st.sidebar.radio(
             "Tipo de consulta", ["Una tienda", "Conjunto de tiendas"]
         )
+
         if tipo_consulta == "Una tienda":
-            tienda_sel = st.sidebar.selectbox("Selecciona tienda", departamentos_disponibles)
+            # Selección expresa: aquí se ofrecen todas las tiendas.
+            tienda_sel = st.sidebar.selectbox(
+                "Selecciona tienda",
+                departamentos_disponibles,
+            )
             tiendas = [tienda_sel] if tienda_sel else []
         else:
             tiendas = st.sidebar.multiselect(
                 "Selecciona tiendas",
                 departamentos_disponibles,
-                default=departamentos_disponibles,
+                default=tiendas_default_kpi,
+                help=(
+                    "GENERAL y las tiendas sin datos se excluyen por defecto. "
+                    "Puedes seleccionarlas expresamente si quieres incluirlas."
+                ),
             )
-    
+
     if not tiendas or not meses_sel:
         st.warning("Selecciona al menos una tienda y un mes.")
         st.stop()
