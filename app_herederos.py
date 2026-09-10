@@ -264,6 +264,9 @@ def render_aggrid_table(
     df_numericos: pd.DataFrame = None,
     resaltar_kpi_tiendas: bool = False,
     columnas_comparar: List[str] = None,
+    resaltar_rb_tiendas: bool = False,
+    altura_fila: int = 32,
+    altura_cabecera: int = 34,
 ) -> None:
     """
     Renderiza la tabla completa.
@@ -374,6 +377,46 @@ def render_aggrid_table(
                         if valor == maximo:
                             rojos_por_columna[c].add(concepto)
 
+
+    # Resaltado específico del análisis R.B.:
+    # entre tiendas, el valor más alto va en verde y el más bajo en rojo.
+    rb_verdes = {}
+    rb_rojos = {}
+    if (
+        resaltar_rb_tiendas
+        and df_numericos is not None
+        and columnas_comparar
+        and len(columnas_comparar) > 1
+    ):
+        # En R.B. las tiendas están en filas y los periodos/medidas en columnas.
+        tiendas_validas = set(columnas_comparar)
+        filas_tiendas = df_numericos[df_numericos["Resultados"].isin(tiendas_validas)]
+
+        for col in df_numericos.columns:
+            if col == "Resultados":
+                continue
+
+            valores = {}
+            for _, fila in filas_tiendas.iterrows():
+                try:
+                    valor = float(fila[col])
+                    if pd.notna(valor):
+                        valores[str(fila["Resultados"])] = valor
+                except (TypeError, ValueError):
+                    pass
+
+            if len(valores) < 2:
+                continue
+
+            minimo = min(valores.values())
+            maximo = max(valores.values())
+
+            if minimo == maximo:
+                continue
+
+            rb_verdes[col] = {tienda for tienda, valor in valores.items() if valor == maximo}
+            rb_rojos[col] = {tienda for tienda, valor in valores.items() if valor == minimo}
+
     gb = GridOptionsBuilder.from_dataframe(df_display)
     gb.configure_default_column(
         resizable=True,
@@ -422,10 +465,17 @@ def render_aggrid_table(
         else:
             ancho = calcular_ancho_columna(df_display, col, 74)
 
-            # Si esta columna participa en la comparación KPI, añadir sombreado.
-            if col in verdes_por_columna or col in rojos_por_columna:
-                filas_verdes = ",".join(repr(x) for x in sorted(verdes_por_columna.get(col, set())))
-                filas_rojas = ",".join(repr(x) for x in sorted(rojos_por_columna.get(col, set())))
+            # Si esta columna participa en comparación KPI o R.B., añadir sombreado.
+            if (
+                col in verdes_por_columna
+                or col in rojos_por_columna
+                or col in rb_verdes
+                or col in rb_rojos
+            ):
+                filas_verdes_set = set(verdes_por_columna.get(col, set())) | set(rb_verdes.get(col, set()))
+                filas_rojas_set = set(rojos_por_columna.get(col, set())) | set(rb_rojos.get(col, set()))
+                filas_verdes = ",".join(repr(x) for x in sorted(filas_verdes_set))
+                filas_rojas = ",".join(repr(x) for x in sorted(filas_rojas_set))
 
                 estilo_kpi_js = JsCode(
                     f"""
@@ -475,13 +525,13 @@ def render_aggrid_table(
     gb.configure_grid_options(
         domLayout="normal",
         suppressRowClickSelection=True,
-        rowHeight=32,
-        headerHeight=34,
+        rowHeight=altura_fila,
+        headerHeight=altura_cabecera,
         getRowStyle=get_row_style,
         suppressHorizontalScroll=False,
     )
 
-    altura_tabla = 34 + (len(df_display) * 32)
+    altura_tabla = altura_cabecera + (len(df_display) * altura_fila)
 
     AgGrid(
         df_display,
@@ -652,7 +702,15 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         df_res_d = pd.DataFrame(filas_display, columns=columnas_tabla)
         df_res_n = pd.DataFrame(filas_nums, columns=columnas_tabla)
         
-        render_aggrid_table(df_res_d, modo="auto")
+        render_aggrid_table(
+            df_res_d,
+            modo="auto",
+            df_numericos=df_res_n,
+            resaltar_rb_tiendas=len(tiendas_rb) > 1,
+            columnas_comparar=tiendas_rb if len(tiendas_rb) > 1 else None,
+            altura_fila=36,
+            altura_cabecera=38,
+        )
         descargar_excel(df_res_n, "Analisis_RB_Mensual", f"Analisis_RB_Mensual_{ano}.xlsx", 
                        "Descargar Análisis R.B. en Excel")
     
@@ -685,7 +743,15 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         df_acum_d = pd.DataFrame(filas_acum_d, columns=["Resultados", f"Acumulado {nombre_m_str}"])
         df_acum_n = pd.DataFrame(filas_acum_n, columns=["Resultados", f"Acumulado {nombre_m_str}"])
         
-        render_aggrid_table(df_acum_d, modo="auto")
+        render_aggrid_table(
+            df_acum_d,
+            modo="auto",
+            df_numericos=df_acum_n,
+            resaltar_rb_tiendas=len(tiendas_rb) > 1,
+            columnas_comparar=tiendas_rb if len(tiendas_rb) > 1 else None,
+            altura_fila=36,
+            altura_cabecera=38,
+        )
         descargar_excel(df_acum_n, "Analisis_RB_Acumulado", f"Analisis_RB_Acumulado_{ano}.xlsx",
                        "Descargar Acumulado R.B. en Excel")
     
@@ -740,7 +806,15 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         df_inter_d = pd.DataFrame(filas_inter_d, columns=columnas_interanual_rb)
         df_inter_n = pd.DataFrame(filas_inter_n, columns=columnas_interanual_rb)
         
-        render_aggrid_table(df_inter_d, modo="auto")
+        render_aggrid_table(
+            df_inter_d,
+            modo="auto",
+            df_numericos=df_inter_n,
+            resaltar_rb_tiendas=len(tiendas_rb) > 1,
+            columnas_comparar=tiendas_rb if len(tiendas_rb) > 1 else None,
+            altura_fila=36,
+            altura_cabecera=38,
+        )
         descargar_excel(df_inter_n, "Interanual_RB", f"Comparativa_Interanual_RB_{ano}.xlsx",
                        "Descargar Comparativa R.B. en Excel")
 
