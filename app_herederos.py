@@ -14,33 +14,33 @@ st.markdown(
     a[href*="github.com"] {display: none !important;}
     
     .block-container {
-        padding-top: 0.3rem !important;
-        padding-bottom: 0.3rem !important;
-        padding-left: 0.8rem !important;
-        padding-right: 0.8rem !important;
+        padding-top: 0.2rem !important;
+        padding-bottom: 0.2rem !important;
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
         max-width: 100% !important;
     }
     h1 {
-        font-size: 1.1rem !important;
+        font-size: 1.05rem !important;
         margin-bottom: 0.1rem !important;
     }
     h3 {
-        font-size: 0.9rem !important;
+        font-size: 0.85rem !important;
         margin-bottom: 0.1rem !important;
     }
     
-    /* Reducción de tamaño de letra y padding en tablas Streamlit para pantalla completa */
+    /* Reducción máxima de tamaño de letra y padding en tablas Streamlit */
     dataframe, [data-testid="stDataFrame"] {
-        font-size: 11px !important;
+        font-size: 10.5px !important;
     }
     th {
-        font-size: 11px !important;
-        padding: 3px 6px !important;
+        font-size: 10.5px !important;
+        padding: 2px 4px !important.
         background-color: #f1f5f9 !important;
     }
     td {
-        font-size: 11px !important;
-        padding: 2px 6px !important;
+        font-size: 10.5px !important;
+        padding: 2px 4px !important;
     }
     </style>
 """,
@@ -130,18 +130,60 @@ campos_destacados = [
 ]
 
 
-# Función segura de estilizado compatible con Pandas moderno (.map)
+# Función robusta de estilizado (Negritas en filas clave + Totales + Colores Verde/Rojo)
 def aplicar_estilos_dataframe(df_styled):
-  def style_cells(val):
-    val_str = str(val)
-    if "-" in val_str and val_str.strip() != "-" and ("%" in val_str or "€" in val_str or "pp" in val_str):
-      return "color: #dc2626; background-color: #fee2e2; font-weight: bold;"
-    elif "%" in val_str or "pp" in val_str:
-      if not "-" in val_str and val_str != "-" and val_str != "0,00%" and val_str != "0,00 pp":
-        return "color: #16a34a; background-color: #dcfce7; font-weight: bold;"
-    return ""
+  def style_row(row):
+    styles = [""] * len(row)
+    row_label = str(row.iloc[0])
+    is_destacado = (
+        row_label in campos_destacados or row_label == "TOTAL GRUPO"
+    )
 
-  return df_styled.style.map(style_cells)
+    for i, col_name in enumerate(df_styled.columns):
+      val = row.iloc[i]
+      val_str = str(val)
+
+      is_total_col = (
+          col_name == "Total"
+          or str(col_name).startswith("Total ")
+          or str(col_name).startswith("Promedio")
+      )
+
+      bg = ""
+      color = ""
+      weight = "bold" if (is_destacado or is_total_col or i == 0) else "normal"
+
+      if is_total_col:
+        bg = "background-color: #d1fae5;"
+      elif is_destacado:
+        bg = "background-color: #eef2f7;"
+
+      # Colores condicionales en verde y rojo para variaciones y negativos
+      if (
+          "Var." in str(col_name)
+          or "%" in val_str
+          or "€" in val_str
+          or "pp" in val_str
+      ):
+        if "-" in val_str and val_str.strip() != "-":
+          color = "color: #dc2626;"
+          bg = "background-color: #fee2e2;"
+          weight = "bold"
+        elif (
+            ("Var." in str(col_name) or "pp" in str(col_name))
+            and val_str != "-"
+            and val_str != "0,00%"
+            and val_str != "0,00 pp"
+            and not "-" in val_str
+        ):
+          color = "color: #16a34a;"
+          bg = "background-color: #dcfce7;"
+          weight = "bold"
+
+      styles[i] = f"{bg} {color} font-weight: {weight};"
+    return styles
+
+  return df_styled.style.apply(style_row, axis=1)
 
 
 # =====================================================================
