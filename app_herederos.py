@@ -130,7 +130,7 @@ campos_destacados = [
 ]
 
 
-# Función segura de estilizado con Pandas Styler
+# Función segura de estilizado compatible con Pandas moderno (.map)
 def aplicar_estilos_dataframe(df_styled):
   def style_cells(val):
     val_str = str(val)
@@ -141,7 +141,7 @@ def aplicar_estilos_dataframe(df_styled):
         return "color: #16a34a; background-color: #dcfce7; font-weight: bold;"
     return ""
 
-  return df_styled.style.applymap(style_cells)
+  return df_styled.style.map(style_cells)
 
 
 # =====================================================================
