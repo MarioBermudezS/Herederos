@@ -52,6 +52,7 @@ MESES_ORDEN = [
 CONCEPTOS_KPI = [
     "Ventas",
     "Coste Ventas",
+    "Ajustes Existencias",
     "MARGEN BRUTO",
     "R. B.",
     "Otros Ingresos",
@@ -148,6 +149,26 @@ def obtener_archivo_datos() -> str:
     for p in sorted(Path(".").glob("BaseDatos2026*.xlsx")):
         if p not in candidatos:
             candidatos.append(p)
+
+    # Máxima prioridad: libro completo con la hoja Ajustes.
+    for archivo in candidatos:
+        if not archivo.exists():
+            continue
+        try:
+            hojas = pd.ExcelFile(archivo).sheet_names
+            if all(
+                h in hojas
+                for h in [
+                    "BS",
+                    "Tiendas",
+                    "Inventario",
+                    "MargenesTotalesAcumulados",
+                    "Ajustes",
+                ]
+            ):
+                return str(archivo)
+        except Exception:
+            pass
 
     # Primero buscar la versión más completa del libro.
     # Para Inventario/Rotación necesitamos también los márgenes totales
@@ -246,6 +267,90 @@ def load_tiendas_m2() -> Dict[str, float]:
         if pd.notna(r["Departamento"]) and pd.notna(r["m2"]) and float(r["m2"]) > 0
     }
 
+
+
+
+@st.cache_data
+def load_ajustes_existencias() -> pd.DataFrame:
+    """
+    Lee la hoja 'Ajustes' con columnas Año, Mes y Ajuste.
+
+    Convención:
+      Ajuste negativo -> reduce Coste/Consumo de Ventas
+                      -> aumenta Margen Bruto, R.B., BAII y BAI.
+    """
+    archivo_datos = obtener_archivo_datos()
+    columnas = ["Año", "Mes", "Ajuste"]
+
+    try:
+        aj = pd.read_excel(archivo_datos, sheet_name="Ajustes")
+    except Exception:
+        return pd.DataFrame(columns=columnas)
+
+    if aj.empty:
+        return pd.DataFrame(columns=columnas)
+
+    def normalizar_nombre(c):
+        return (
+            str(c).strip().lower()
+            .replace("á", "a").replace("é", "e").replace("í", "i")
+            .replace("ó", "o").replace("ú", "u").replace("ñ", "n")
+        )
+
+    mapa = {normalizar_nombre(c): c for c in aj.columns}
+    col_ano = mapa.get("ano")
+    col_mes = mapa.get("mes")
+    col_ajuste = next(
+        (
+            mapa.get(k)
+            for k in [
+                "ajuste",
+                "ajustes",
+                "ajuste existencias",
+                "ajustes existencias",
+                "variacion existencias",
+                "variacion de existencias",
+            ]
+            if mapa.get(k) is not None
+        ),
+        None,
+    )
+
+    if col_ano is None or col_mes is None or col_ajuste is None:
+        return pd.DataFrame(columns=columnas)
+
+    out = aj[[col_ano, col_mes, col_ajuste]].copy()
+    out.columns = columnas
+    out["Año"] = pd.to_numeric(out["Año"], errors="coerce")
+    out["Ajuste"] = pd.to_numeric(out["Ajuste"], errors="coerce")
+
+    mapa_meses = {m.upper(): m for m in MESES_ORDEN}
+    out["Mes"] = out["Mes"].apply(
+        lambda x: mapa_meses.get(str(x).strip().upper(), str(x).strip())
+        if pd.notna(x) else x
+    )
+
+    out = out.dropna(subset=["Año", "Mes", "Ajuste"]).copy()
+    out["Año"] = out["Año"].astype(int)
+
+    return out.groupby(["Año", "Mes"], as_index=False)["Ajuste"].sum()
+
+
+def obtener_ajuste_existencias(ano: int, meses: List[str]) -> float:
+    ajustes = load_ajustes_existencias()
+    if ajustes.empty or not meses:
+        return 0.0
+
+    filtro = ajustes[
+        (ajustes["Año"] == int(ano))
+        & (ajustes["Mes"].isin(list(meses)))
+    ]
+    if filtro.empty:
+        return 0.0
+
+    return float(
+        pd.to_numeric(filtro["Ajuste"], errors="coerce").fillna(0).sum()
+    )
 
 
 @st.cache_data
@@ -614,6 +719,45 @@ def obtener_filtro_datos(
         mascara &= (df["Departamento"].isin(departamentos))
     return df[mascara]
 
+
+def seleccion_es_total_empresa(
+    tiendas: List[str],
+    departamentos_sin_general: List[str],
+) -> bool:
+    """Comprueba si están seleccionadas todas las tiendas operativas."""
+    seleccion = {
+        str(x).strip()
+        for x in (tiendas or [])
+        if str(x).strip().upper() != "GENERAL"
+    }
+    total = {
+        str(x).strip()
+        for x in (departamentos_sin_general or [])
+        if str(x).strip().upper() != "GENERAL"
+    }
+    return bool(total) and seleccion == total
+
+
+def calcular_resultados_seleccion(
+    df_filtrado: pd.DataFrame,
+    ano: int,
+    meses: List[str],
+    tiendas: List[str],
+    departamentos_sin_general: List[str],
+) -> Dict[str, float]:
+    """
+    Aplica Ajustes Existencias únicamente cuando la selección es TOTAL empresa.
+    """
+    ajuste = 0.0
+    if seleccion_es_total_empresa(tiendas, departamentos_sin_general):
+        ajuste = obtener_ajuste_existencias(ano, meses)
+
+    return calcular_resultados(
+        df_filtrado,
+        ajuste_existencias=ajuste,
+    )
+
+
 # =====================================================================
 # FUNCIONES DE CÁLCULO
 # =====================================================================
@@ -642,8 +786,11 @@ def calcular_rb_puro(df_filtrado: pd.DataFrame) -> float:
     
     return total_margen / total_ventas
 
-def calcular_resultados(df_filtrado: pd.DataFrame) -> Dict[str, float]:
-    """Calcula todos los conceptos de la cuenta de resultados."""
+def calcular_resultados(
+    df_filtrado: pd.DataFrame,
+    ajuste_existencias: float = 0.0,
+) -> Dict[str, float]:
+    """Calcula la cuenta de resultados, incluyendo ajustes globales opcionales."""
     if df_filtrado.empty:
         return {c: 0.0 for c in CONCEPTOS_KPI}
     
@@ -674,6 +821,14 @@ def calcular_resultados(df_filtrado: pd.DataFrame) -> Dict[str, float]:
         r_bruta = get_v("R. B.")
         margen_bruto = r_bruta * ventas
     
+    # Ajuste de existencias del TOTAL empresa.
+    # Ajuste negativo -> reduce Coste/Consumo y aumenta Margen y Resultado.
+    ajuste_existencias = float(ajuste_existencias or 0.0)
+    margen_bruto = margen_bruto - ajuste_existencias
+
+    base_rb = total_ventas_calc if total_ventas_calc != 0 else ventas
+    r_bruta = (margen_bruto / base_rb) if base_rb != 0 else 0.0
+
     coste_ventas = ventas - margen_bruto
     
     # Estructura de costos
@@ -712,6 +867,7 @@ def calcular_resultados(df_filtrado: pd.DataFrame) -> Dict[str, float]:
     return {
         "Ventas": ventas,
         "Coste Ventas": coste_ventas,
+        "Ajustes Existencias": ajuste_existencias,
         "MARGEN BRUTO": margen_bruto,
         "R. B.": r_bruta,
         "Otros Ingresos": otros_ingresos,
@@ -2489,8 +2645,12 @@ elif modulo_principal == "Cuenta de Resultados Completa":
         df_ant = obtener_filtro_datos(df, ano_anterior, meses_sel, tiendas)
         df_act = obtener_filtro_datos(df, ano, meses_sel, tiendas)
         
-        datos_fuente["Ant"] = calcular_resultados(df_ant)
-        datos_fuente["Act"] = calcular_resultados(df_act)
+        datos_fuente["Ant"] = calcular_resultados_seleccion(
+            df_ant, ano_anterior, meses_sel, tiendas, departamentos_sin_general
+        )
+        datos_fuente["Act"] = calcular_resultados_seleccion(
+            df_act, ano, meses_sel, tiendas, departamentos_sin_general
+        )
         
         columnas_eje = [f"Total {ano}", f"Total {ano_anterior}", "Var. €", "Var. %"]
         columnas_tabla = ["Resultados"] + columnas_eje
@@ -2539,7 +2699,9 @@ elif modulo_principal == "Cuenta de Resultados Completa":
             datos_fuente[tienda] = calcular_resultados(df_filtrado)
         
         df_filtrado = obtener_filtro_datos(df, ano, meses_sel, tiendas)
-        datos_fuente["Total"] = calcular_resultados(df_filtrado)
+        datos_fuente["Total"] = calcular_resultados_seleccion(
+            df_filtrado, ano, meses_sel, tiendas, departamentos_sin_general
+        )
         
         columnas_eje = tiendas + ["Total"]
         columnas_tabla = ["Resultados"] + columnas_eje
@@ -2581,7 +2743,9 @@ elif modulo_principal == "Cuenta de Resultados Completa":
                 datos_fuente[tienda] = calcular_resultados(df_filtrado)
             
             df_filtrado = obtener_filtro_datos(df, ano, meses_sel, tiendas)
-            datos_fuente["Total"] = calcular_resultados(df_filtrado)
+            datos_fuente["Total"] = calcular_resultados_seleccion(
+            df_filtrado, ano, meses_sel, tiendas, departamentos_sin_general
+        )
             columnas_eje = tiendas + ["Total"]
         else:
             # Evolución por meses
@@ -2591,7 +2755,9 @@ elif modulo_principal == "Cuenta de Resultados Completa":
             
             if len(meses_sel) > 1:
                 df_filtrado = obtener_filtro_datos(df, ano, meses_sel, tiendas)
-                datos_fuente["Total"] = calcular_resultados(df_filtrado)
+                datos_fuente["Total"] = calcular_resultados_seleccion(
+            df_filtrado, ano, meses_sel, tiendas, departamentos_sin_general
+        )
                 columnas_eje = meses_sel + ["Total"]
             else:
                 columnas_eje = meses_sel
