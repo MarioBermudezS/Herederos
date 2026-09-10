@@ -1,8 +1,7 @@
 import io
 import pandas as pd
 import streamlit as st
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
@@ -26,11 +25,6 @@ CSS_ESTILOS = """
     }
     h1 {font-size: 1.2rem !important; margin-bottom: 0.1rem !important;}
     h3 {font-size: 0.95rem !important; margin-bottom: 0.1rem !important;}
-    
-    .negrita-row {
-        font-weight: bold !important;
-        background-color: #f0f0f0 !important;
-    }
     </style>
 """
 
@@ -86,17 +80,6 @@ def formato_moneda(valor: float, decimales: int = 2) -> str:
 def formato_variacion_pp(valor: float) -> str:
     """Formatea variaciones en puntos porcentuales."""
     return f"{valor * 100:,.2f} pp".replace(",", "X").replace(".", ",").replace("X", ".")
-
-def calcular_ancho_columna(df: pd.DataFrame, col_name: str, min_width: int = 80) -> int:
-    """Calcula el ancho óptimo de una columna basado en su contenido."""
-    if col_name not in df.columns:
-        return min_width
-    try:
-        max_len = max(len(str(val)) for val in df[col_name].astype(str))
-    except:
-        max_len = len(col_name)
-    ancho = max(max_len * 8 + 15, len(col_name) * 8 + 15, min_width)
-    return min(ancho, 250)
 
 @st.cache_data
 def load_data() -> pd.DataFrame:
@@ -233,55 +216,24 @@ def calcular_resultados(df_filtrado: pd.DataFrame) -> Dict[str, float]:
 # FUNCIONES DE RENDERIZACIÓN
 # =====================================================================
 
-def render_aggrid_table(df_display: pd.DataFrame, modo: str = "auto", filas_negrita: List[str] = None) -> None:
-    """Renderiza tablas profesionales con AgGrid con negrita condicional."""
-    gb = GridOptionsBuilder.from_dataframe(df_display)
-    gb.configure_default_column(
-        resizable=True,
-        filterable=False,
-        sortable=False,
-        editable=False,
-        suppressMenu=True,
-    )
+def render_dataframe_table(df_display: pd.DataFrame, filas_negrita: List[str] = None) -> None:
+    """Renderiza tablas con estilos - negrita en filas importantes."""
     
-    # Primera columna fija
-    if len(df_display.columns) > 0:
-        first_col = df_display.columns[0]
-        first_col_width = calcular_ancho_columna(df_display, first_col, 200)
-        
-        gb.configure_column(
-            first_col,
-            pinned="left",
-            width=first_col_width,
-            minWidth=150,
-            cellStyle={"fontWeight": "bold", "textAlign": "left"},
-        )
+    def estilo_fila(row):
+        if filas_negrita:
+            primera_col = df_display.columns[0]
+            valor_primera = df_display.iloc[row.name][primera_col]
+            
+            if valor_primera in filas_negrita:
+                return ['font-weight: bold; background-color: #f0f0f0;'] * len(row)
+        return [''] * len(row)
     
-    # Resto de columnas
-    for col in df_display.columns[1:]:
-        col_width = calcular_ancho_columna(df_display, col, 100)
-        gb.configure_column(
-            col, 
-            width=col_width, 
-            minWidth=80, 
-            cellStyle={"textAlign": "right"}
-        )
+    styled_df = df_display.style.apply(estilo_fila, axis=1)
     
-    # Configuración de grid
-    gb.configure_grid_options(
-        domLayout="normal",
-        suppressRowClickSelection=True,
-        enableCellChangeFlash=False,
-    )
-    
-    AgGrid(
-        df_display,
-        gridOptions=gb.build(),
-        update_mode=GridUpdateMode.NO_UPDATE,
-        fit_columns_on_grid_load=True,
-        allow_unsafe_jscode=True,
-        theme="balham",
-        height=700,  # Altura mayor para ver todos los datos
+    st.dataframe(
+        styled_df,
+        use_container_width=True,
+        hide_index=True,
     )
 
 def descargar_excel(df: pd.DataFrame, nombre_hoja: str, nombre_archivo: str, etiqueta: str) -> None:
@@ -421,7 +373,7 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         df_res_d = pd.DataFrame(filas_display, columns=columnas_tabla)
         df_res_n = pd.DataFrame(filas_nums, columns=columnas_tabla)
         
-        render_aggrid_table(df_res_d, modo="auto", filas_negrita=FILAS_NEGRITA_RB)
+        render_dataframe_table(df_res_d, filas_negrita=FILAS_NEGRITA_RB)
         descargar_excel(df_res_n, "Analisis_RB_Mensual", f"Analisis_RB_Mensual_{ano}.xlsx", 
                        "Descargar Análisis R.B. en Excel")
     
@@ -451,7 +403,7 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         df_acum_d = pd.DataFrame(filas_acum_d, columns=["Tienda", f"Acumulado {nombre_m_str}"])
         df_acum_n = pd.DataFrame(filas_acum_n, columns=["Tienda", f"Acumulado {nombre_m_str}"])
         
-        render_aggrid_table(df_acum_d, modo="auto", filas_negrita=FILAS_NEGRITA_RB)
+        render_dataframe_table(df_acum_d, filas_negrita=FILAS_NEGRITA_RB)
         descargar_excel(df_acum_n, "Analisis_RB_Acumulado", f"Analisis_RB_Acumulado_{ano}.xlsx",
                        "Descargar Acumulado R.B. en Excel")
     
@@ -503,7 +455,7 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         df_inter_d = pd.DataFrame(filas_inter_d, columns=columnas_interanual_rb)
         df_inter_n = pd.DataFrame(filas_inter_n, columns=columnas_interanual_rb)
         
-        render_aggrid_table(df_inter_d, modo="auto", filas_negrita=FILAS_NEGRITA_RB)
+        render_dataframe_table(df_inter_d, filas_negrita=FILAS_NEGRITA_RB)
         descargar_excel(df_inter_n, "Interanual_RB", f"Comparativa_Interanual_RB_{ano}.xlsx",
                        "Descargar Comparativa R.B. en Excel")
 
@@ -601,7 +553,7 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
         df_kpi_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
         df_kpi_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
         
-        render_aggrid_table(df_kpi_display, modo="auto", filas_negrita=FILAS_NEGRITA_KPI)
+        render_dataframe_table(df_kpi_display, filas_negrita=FILAS_NEGRITA_KPI)
         descargar_excel(df_kpi_numericos, "Informe_KPI", f"Informe_KPI_Ventas_{ano}.xlsx",
                        "Descargar Informe KPI en Excel")
     
@@ -644,7 +596,7 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
         df_kpi_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
         df_kpi_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
         
-        render_aggrid_table(df_kpi_display, modo="auto", filas_negrita=FILAS_NEGRITA_KPI)
+        render_dataframe_table(df_kpi_display, filas_negrita=FILAS_NEGRITA_KPI)
         descargar_excel(df_kpi_numericos, "Informe_KPI", f"Informe_KPI_Ventas_{ano}.xlsx",
                        "Descargar Informe KPI en Excel")
     
@@ -700,7 +652,7 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
         df_kpi_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
         df_kpi_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
         
-        render_aggrid_table(df_kpi_display, modo="auto", filas_negrita=FILAS_NEGRITA_KPI)
+        render_dataframe_table(df_kpi_display, filas_negrita=FILAS_NEGRITA_KPI)
         descargar_excel(df_kpi_numericos, "Informe_KPI", f"Informe_KPI_Ventas_{ano}.xlsx",
                        "Descargar Informe KPI en Excel")
 
@@ -794,7 +746,7 @@ else:
         df_resultado_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
         df_valores_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
         
-        render_aggrid_table(df_resultado_display, modo="auto", filas_negrita=FILAS_NEGRITA_RESULTADOS)
+        render_dataframe_table(df_resultado_display, filas_negrita=FILAS_NEGRITA_RESULTADOS)
         descargar_excel(df_valores_numericos, "Informe", f"Informe_Resultados_{ano}.xlsx",
                        "Descargar Informe en Excel")
     
@@ -833,7 +785,7 @@ else:
         df_resultado_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
         df_valores_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
         
-        render_aggrid_table(df_resultado_display, modo="auto", filas_negrita=FILAS_NEGRITA_RESULTADOS)
+        render_dataframe_table(df_resultado_display, filas_negrita=FILAS_NEGRITA_RESULTADOS)
         descargar_excel(df_valores_numericos, "Informe", f"Informe_Resultados_{ano}.xlsx",
                        "Descargar Informe en Excel")
     
@@ -885,6 +837,6 @@ else:
         df_resultado_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
         df_valores_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
         
-        render_aggrid_table(df_resultado_display, modo="auto", filas_negrita=FILAS_NEGRITA_RESULTADOS)
+        render_dataframe_table(df_resultado_display, filas_negrita=FILAS_NEGRITA_RESULTADOS)
         descargar_excel(df_valores_numericos, "Informe", f"Informe_Resultados_{ano}.xlsx",
                        "Descargar Informe en Excel")
