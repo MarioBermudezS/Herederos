@@ -567,7 +567,7 @@ def render_aggrid_table(
 
                         let estilo = {
                             'textAlign': 'right',
-                            'backgroundColor': '#eef1f4',
+                            'backgroundColor': '#fff7cc',
                             'fontWeight': '700'
                         };
 
@@ -800,7 +800,7 @@ def render_aggrid_rb_horizontal(
 
                     let estilo = {
                         'textAlign': 'right',
-                        'backgroundColor': '#eef1f4',
+                        'backgroundColor': '#fff7cc',
                         'fontWeight': '700'
                     };
 
