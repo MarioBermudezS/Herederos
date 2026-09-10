@@ -1578,21 +1578,31 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
     # Para KPI por m² la lista se construye DESDE EL PRINCIPIO solo con
     # tiendas válidas: nunca GENERAL, nunca tiendas sin movimiento y siempre
     # con m² informado en la hoja Tiendas.
-    def tienda_kpi_tiene_movimiento(tienda: str) -> bool:
+    def tienda_kpi_tiene_datos(tienda: str) -> bool:
+        """
+        Una tienda solo se considera válida para KPI si, en el periodo
+        seleccionado, alguno de los conceptos KPI calculados es distinto de cero.
+        Esto evita incluir tiendas con movimientos residuales que no generan KPI.
+        """
         df_tienda = obtener_filtro_datos(df, ano, meses_sel, [tienda])
         if df_tienda.empty:
             return False
 
-        if "Importe D" in df_tienda.columns:
-            importes = pd.to_numeric(df_tienda["Importe D"], errors="coerce").fillna(0)
-            return bool(importes.abs().sum() > 1e-12)
+        resultados_tienda = calcular_resultados(df_tienda)
+
+        for concepto, valor in resultados_tienda.items():
+            try:
+                if abs(float(valor)) > 1e-12:
+                    return True
+            except (TypeError, ValueError):
+                continue
 
         return False
 
     tiendas_kpi_normales = [
         t for t in departamentos_disponibles
         if str(t).strip().upper() != "GENERAL"
-        and tienda_kpi_tiene_movimiento(t)
+        and tienda_kpi_tiene_datos(t)
     ]
 
     tiendas_kpi_m2 = [
