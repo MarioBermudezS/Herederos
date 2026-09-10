@@ -116,7 +116,7 @@ campos_destacados = [
     "TOTAL GRUPO",
 ]
 
-# JsCode avanzado para estilos, negritas, totales y colores condicionales en KPIs
+# JsCode avanzado con estilos, negritas, destacados y coloreado condicional completo
 cell_style_jscode = JsCode("""
 function(params) {
     var rowNode = params.node;
@@ -146,10 +146,7 @@ function(params) {
     }
 
     if (typeof val === 'string') {
-        if (val.includes('-') && !val.includes('%') && !val.includes('pp')) {
-            style['color'] = '#dc2626';
-            style['fontWeight'] = 'bold';
-        } else if (field === "Var. pp" || field === "Var. %" || field === "Var. €") {
+        if (field === "Var. pp" || field === "Var. %" || field === "Var. €") {
             if (!val.includes('-') && val !== '-' && val !== '0,00%' && val !== '0,00 pp') {
                 style['color'] = '#16a34a';
                 style['fontWeight'] = 'bold';
@@ -157,6 +154,9 @@ function(params) {
                 style['color'] = '#dc2626';
                 style['fontWeight'] = 'bold';
             }
+        } else if (val.includes('-') && !val.includes('%') && !val.includes('pp')) {
+            style['color'] = '#dc2626';
+            style['fontWeight'] = 'bold';
         }
     }
 
@@ -188,19 +188,16 @@ def render_tabla_aggrid(df_display):
   for col in df_display.columns[1:]:
     gb.configure_column(col, width=125, minWidth=105)
 
+  # domLayout='autoHeight' hace que la tabla se expanda por completo mostrando todas las filas sin scroll interno
   gb.configure_grid_options(
+      domLayout="autoHeight",
       suppressRowClickSelection=True,
   )
   gridOptions = gb.build()
 
-  # Altura dinámica calculada por filas para mostrar todo el informe de golpe en pantalla
-  row_count = len(df_display)
-  calculated_height = max(400, (row_count + 1) * 36 + 45)
-
   AgGrid(
       df_display,
       gridOptions=gridOptions,
-      height=calculated_height,
       update_mode=GridUpdateMode.NO_UPDATE,
       fit_columns_on_grid_load=True,
       allow_unsafe_jscode=True,
