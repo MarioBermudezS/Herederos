@@ -26,6 +26,11 @@ CSS_ESTILOS = """
     }
     h1 {font-size: 1.2rem !important; margin-bottom: 0.1rem !important;}
     h3 {font-size: 0.95rem !important; margin-bottom: 0.1rem !important;}
+    
+    .negrita-row {
+        font-weight: bold !important;
+        background-color: #f0f0f0 !important;
+    }
     </style>
 """
 
@@ -35,26 +40,31 @@ MESES_ORDEN = [
 ]
 
 CONCEPTOS_KPI = [
-    "Ventas",
-    "Coste Ventas",
+    "Ventas", "Coste Ventas", "MARGEN BRUTO", "R. B.", "Otros Ingresos",
+    "Ingresos Operativos", "Gastos Personal", "Alquileres", "Reparaciones",
+    "Seguros", "Suministros", "Otros Servicios", "TOTAL GASTOS OPERATIVOS",
+    "Amortizaciones", "GASTOS ESTRUCTURA", "B.A.I.I.", "Gastos Financieros",
+    "Ingresos Financieros", "RDO. FINANCIERO", "Resultados Extraordinarios", "B.A.I.",
+]
+
+FILAS_NEGRITA_RESULTADOS = [
     "MARGEN BRUTO",
-    "R. B.",
-    "Otros Ingresos",
-    "Ingresos Operativos",
-    "Gastos Personal",
-    "Alquileres",
-    "Reparaciones",
-    "Seguros",
-    "Suministros",
-    "Otros Servicios",
+    "Ingresos Operativos", 
     "TOTAL GASTOS OPERATIVOS",
-    "Amortizaciones",
     "GASTOS ESTRUCTURA",
     "B.A.I.I.",
-    "Gastos Financieros",
-    "Ingresos Financieros",
     "RDO. FINANCIERO",
-    "Resultados Extraordinarios",
+    "B.A.I.",
+]
+
+FILAS_NEGRITA_RB = ["TOTAL GRUPO"]
+
+FILAS_NEGRITA_KPI = [
+    "MARGEN BRUTO",
+    "Ingresos Operativos",
+    "TOTAL GASTOS OPERATIVOS",
+    "GASTOS ESTRUCTURA",
+    "B.A.I.I.",
     "B.A.I.",
 ]
 
@@ -78,17 +88,13 @@ def formato_variacion_pp(valor: float) -> str:
     return f"{valor * 100:,.2f} pp".replace(",", "X").replace(".", ",").replace("X", ".")
 
 def calcular_ancho_columna(df: pd.DataFrame, col_name: str, min_width: int = 80) -> int:
-    """
-    Calcula el ancho óptimo de una columna basado en su contenido.
-    """
+    """Calcula el ancho óptimo de una columna basado en su contenido."""
     if col_name not in df.columns:
         return min_width
-    
     try:
         max_len = max(len(str(val)) for val in df[col_name].astype(str))
     except:
         max_len = len(col_name)
-    
     ancho = max(max_len * 8 + 15, len(col_name) * 8 + 15, min_width)
     return min(ancho, 250)
 
@@ -227,10 +233,8 @@ def calcular_resultados(df_filtrado: pd.DataFrame) -> Dict[str, float]:
 # FUNCIONES DE RENDERIZACIÓN
 # =====================================================================
 
-def render_aggrid_table(df_display: pd.DataFrame, modo: str = "auto") -> None:
-    """
-    Renderiza tablas profesionales con AgGrid.
-    """
+def render_aggrid_table(df_display: pd.DataFrame, modo: str = "auto", filas_negrita: List[str] = None) -> None:
+    """Renderiza tablas profesionales con AgGrid con negrita condicional."""
     gb = GridOptionsBuilder.from_dataframe(df_display)
     gb.configure_default_column(
         resizable=True,
@@ -240,6 +244,7 @@ def render_aggrid_table(df_display: pd.DataFrame, modo: str = "auto") -> None:
         suppressMenu=True,
     )
     
+    # Primera columna fija
     if len(df_display.columns) > 0:
         first_col = df_display.columns[0]
         first_col_width = calcular_ancho_columna(df_display, first_col, 200)
@@ -252,6 +257,7 @@ def render_aggrid_table(df_display: pd.DataFrame, modo: str = "auto") -> None:
             cellStyle={"fontWeight": "bold", "textAlign": "left"},
         )
     
+    # Resto de columnas
     for col in df_display.columns[1:]:
         col_width = calcular_ancho_columna(df_display, col, 100)
         gb.configure_column(
@@ -261,21 +267,12 @@ def render_aggrid_table(df_display: pd.DataFrame, modo: str = "auto") -> None:
             cellStyle={"textAlign": "right"}
         )
     
-    if modo == "fit":
-        gb.configure_grid_options(
-            domLayout="normal",
-            suppressRowClickSelection=True,
-        )
-    elif modo == "scroll":
-        gb.configure_grid_options(
-            domLayout="normal",
-            suppressRowClickSelection=True,
-        )
-    else:
-        gb.configure_grid_options(
-            domLayout="autoHeight",
-            suppressRowClickSelection=True,
-        )
+    # Configuración de grid
+    gb.configure_grid_options(
+        domLayout="normal",
+        suppressRowClickSelection=True,
+        enableCellChangeFlash=False,
+    )
     
     AgGrid(
         df_display,
@@ -284,7 +281,7 @@ def render_aggrid_table(df_display: pd.DataFrame, modo: str = "auto") -> None:
         fit_columns_on_grid_load=True,
         allow_unsafe_jscode=True,
         theme="balham",
-        height=400,
+        height=700,  # Altura mayor para ver todos los datos
     )
 
 def descargar_excel(df: pd.DataFrame, nombre_hoja: str, nombre_archivo: str, etiqueta: str) -> None:
@@ -373,9 +370,6 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         st.warning("Selecciona al menos una tienda y un mes.")
         st.stop()
     
-    # =====================================================================
-    # EVOLUCIÓN MENSUAL POR TIENDA
-    # =====================================================================
     if tipo_analisis_rb == "Evolución Mensual por Tienda":
         st.subheader(f"Análisis R.B. - Evolución Mensual por Tienda ({ano})")
         
@@ -405,22 +399,21 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
             filas_display.append(fila_d)
             filas_nums.append(fila_n)
         
-        # TOTAL GRUPO
         if len(tiendas_rb) > 1:
-            fila_d_tot = ["**TOTAL GRUPO**"]
+            fila_d_tot = ["TOTAL GRUPO"]
             fila_n_tot = ["TOTAL GRUPO"]
             
             for mes in meses_sel:
                 df_filtrado = obtener_filtro_datos(df, ano, [mes], tiendas_rb)
                 val_m = calcular_rb_puro(df_filtrado)
                 fila_n_tot.append(val_m)
-                fila_d_tot.append(f"**{formato_porcentaje(val_m)}**")
+                fila_d_tot.append(formato_porcentaje(val_m))
             
             if len(meses_sel) > 1:
                 df_acum = obtener_filtro_datos(df, ano, meses_sel, tiendas_rb)
                 val_tot_ac = calcular_rb_puro(df_acum)
                 fila_n_tot.append(val_tot_ac)
-                fila_d_tot.append(f"**{formato_porcentaje(val_tot_ac)}**")
+                fila_d_tot.append(formato_porcentaje(val_tot_ac))
             
             filas_display.append(fila_d_tot)
             filas_nums.append(fila_n_tot)
@@ -428,13 +421,10 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         df_res_d = pd.DataFrame(filas_display, columns=columnas_tabla)
         df_res_n = pd.DataFrame(filas_nums, columns=columnas_tabla)
         
-        render_aggrid_table(df_res_d, modo="auto")
+        render_aggrid_table(df_res_d, modo="auto", filas_negrita=FILAS_NEGRITA_RB)
         descargar_excel(df_res_n, "Analisis_RB_Mensual", f"Analisis_RB_Mensual_{ano}.xlsx", 
                        "Descargar Análisis R.B. en Excel")
     
-    # =====================================================================
-    # VISTA ACUMULADA POR TIENDA
-    # =====================================================================
     elif tipo_analisis_rb == "Vista Acumulada por Tienda":
         nombre_m_str = (
             ", ".join(meses_sel)
@@ -455,19 +445,16 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         if len(tiendas_rb) > 1:
             df_filtrado = obtener_filtro_datos(df, ano, meses_sel, tiendas_rb)
             val_tot = calcular_rb_puro(df_filtrado)
-            filas_acum_d.append(["**TOTAL GRUPO**", f"**{formato_porcentaje(val_tot)}**"])
+            filas_acum_d.append(["TOTAL GRUPO", formato_porcentaje(val_tot)])
             filas_acum_n.append(["TOTAL GRUPO", val_tot])
         
         df_acum_d = pd.DataFrame(filas_acum_d, columns=["Tienda", f"Acumulado {nombre_m_str}"])
         df_acum_n = pd.DataFrame(filas_acum_n, columns=["Tienda", f"Acumulado {nombre_m_str}"])
         
-        render_aggrid_table(df_acum_d, modo="auto")
+        render_aggrid_table(df_acum_d, modo="auto", filas_negrita=FILAS_NEGRITA_RB)
         descargar_excel(df_acum_n, "Analisis_RB_Acumulado", f"Analisis_RB_Acumulado_{ano}.xlsx",
                        "Descargar Acumulado R.B. en Excel")
     
-    # =====================================================================
-    # COMPARATIVA INTERANUAL
-    # =====================================================================
     else:
         ano_ant = ano - 1
         nombre_m_str = (
@@ -507,16 +494,16 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
             
             filas_inter_n.append(["TOTAL GRUPO", val_tot_act, val_tot_ant, var_tot_pp])
             filas_inter_d.append([
-                "**TOTAL GRUPO**",
-                f"**{formato_porcentaje(val_tot_act)}**",
-                f"**{formato_porcentaje(val_tot_ant)}**",
-                f"**{formato_variacion_pp(var_tot_pp)}**",
+                "TOTAL GRUPO",
+                formato_porcentaje(val_tot_act),
+                formato_porcentaje(val_tot_ant),
+                formato_variacion_pp(var_tot_pp),
             ])
         
         df_inter_d = pd.DataFrame(filas_inter_d, columns=columnas_interanual_rb)
         df_inter_n = pd.DataFrame(filas_inter_n, columns=columnas_interanual_rb)
         
-        render_aggrid_table(df_inter_d, modo="auto")
+        render_aggrid_table(df_inter_d, modo="auto", filas_negrita=FILAS_NEGRITA_RB)
         descargar_excel(df_inter_n, "Interanual_RB", f"Comparativa_Interanual_RB_{ano}.xlsx",
                        "Descargar Comparativa R.B. en Excel")
 
@@ -614,7 +601,7 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
         df_kpi_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
         df_kpi_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
         
-        render_aggrid_table(df_kpi_display, modo="auto")
+        render_aggrid_table(df_kpi_display, modo="auto", filas_negrita=FILAS_NEGRITA_KPI)
         descargar_excel(df_kpi_numericos, "Informe_KPI", f"Informe_KPI_Ventas_{ano}.xlsx",
                        "Descargar Informe KPI en Excel")
     
@@ -657,7 +644,7 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
         df_kpi_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
         df_kpi_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
         
-        render_aggrid_table(df_kpi_display, modo="auto")
+        render_aggrid_table(df_kpi_display, modo="auto", filas_negrita=FILAS_NEGRITA_KPI)
         descargar_excel(df_kpi_numericos, "Informe_KPI", f"Informe_KPI_Ventas_{ano}.xlsx",
                        "Descargar Informe KPI en Excel")
     
@@ -713,7 +700,7 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
         df_kpi_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
         df_kpi_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
         
-        render_aggrid_table(df_kpi_display, modo="auto")
+        render_aggrid_table(df_kpi_display, modo="auto", filas_negrita=FILAS_NEGRITA_KPI)
         descargar_excel(df_kpi_numericos, "Informe_KPI", f"Informe_KPI_Ventas_{ano}.xlsx",
                        "Descargar Informe KPI en Excel")
 
@@ -807,7 +794,7 @@ else:
         df_resultado_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
         df_valores_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
         
-        render_aggrid_table(df_resultado_display, modo="auto")
+        render_aggrid_table(df_resultado_display, modo="auto", filas_negrita=FILAS_NEGRITA_RESULTADOS)
         descargar_excel(df_valores_numericos, "Informe", f"Informe_Resultados_{ano}.xlsx",
                        "Descargar Informe en Excel")
     
@@ -846,7 +833,7 @@ else:
         df_resultado_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
         df_valores_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
         
-        render_aggrid_table(df_resultado_display, modo="auto")
+        render_aggrid_table(df_resultado_display, modo="auto", filas_negrita=FILAS_NEGRITA_RESULTADOS)
         descargar_excel(df_valores_numericos, "Informe", f"Informe_Resultados_{ano}.xlsx",
                        "Descargar Informe en Excel")
     
@@ -898,6 +885,6 @@ else:
         df_resultado_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
         df_valores_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
         
-        render_aggrid_table(df_resultado_display, modo="auto")
+        render_aggrid_table(df_resultado_display, modo="auto", filas_negrita=FILAS_NEGRITA_RESULTADOS)
         descargar_excel(df_valores_numericos, "Informe", f"Informe_Resultados_{ano}.xlsx",
                        "Descargar Informe en Excel")
