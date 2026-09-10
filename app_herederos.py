@@ -113,10 +113,15 @@ def calcular_ancho_columna(df: pd.DataFrame, col_name: str, min_width: int = 74)
     # cifras, signos, moneda, porcentajes ni separadores de miles.
     # Con fuente de 13 px, ~6,7 px por carácter + padding ofrece un ajuste compacto
     # pero legible incluso cuando se muestran varias columnas.
-    ancho = max(int(max_len * 6.7 + 16), int(len(col_name) * 6.7 + 16), min_width)
+    # Ajuste algo más compacto sin cortar cifras, porcentajes ni símbolos.
+    ancho = max(
+        int(max_len * 6.2 + 14),
+        int(len(col_name) * 6.2 + 14),
+        min_width
+    )
 
     # Evita columnas desproporcionadamente anchas.
-    return min(ancho, 220)
+    return min(ancho, 205)
 
 @st.cache_data
 def load_data() -> pd.DataFrame:
@@ -486,7 +491,7 @@ def render_aggrid_table(
                 pinned="left",
                 width=ancho,
                 minWidth=120,
-                maxWidth=230,
+                maxWidth=215,
                 cellStyle={"textAlign": "left", "fontWeight": "600"},
             )
         else:
@@ -577,7 +582,7 @@ def render_aggrid_table(
                 col,
                 width=ancho,
                 minWidth=74,
-                maxWidth=220,
+                maxWidth=205,
                 cellStyle=cell_style,
             )
 
@@ -614,6 +619,16 @@ def render_aggrid_table(
                 "padding-left": "5px",
                 "padding-right": "5px",
                 "border-right": "1px solid #b8bec5",
+            },
+            ".ag-header-cell-label": {
+                "justify-content": "center",
+                "text-align": "center",
+                "width": "100%",
+            },
+            ".ag-header-cell-label": {
+                "justify-content": "center",
+                "text-align": "center",
+                "width": "100%",
             },
         },
     )
@@ -697,7 +712,7 @@ def render_aggrid_rb_horizontal(
                 pinned="left",
                 width=ancho,
                 minWidth=95,
-                maxWidth=150,
+                maxWidth=140,
                 cellStyle={"textAlign": "left", "fontWeight": "600"},
             )
             continue
@@ -790,7 +805,7 @@ def render_aggrid_rb_horizontal(
             col,
             width=ancho,
             minWidth=78,
-            maxWidth=180,
+            maxWidth=170,
             cellStyle=estilo,
         )
 
