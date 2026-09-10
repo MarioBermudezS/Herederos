@@ -133,10 +133,49 @@ def calcular_ancho_columna(df: pd.DataFrame, col_name: str, min_width: int = 74)
     # Ajuste compacto para aprovechar mejor el ancho de pantalla.
     return min(ancho, 166)
 
+def obtener_archivo_datos() -> str:
+    """
+    Localiza el Excel de datos que contiene las hojas BS y Tiendas.
+    Prioriza BaseDatos2026.xlsx, pero admite nombres como BaseDatos2026(1).xlsx.
+    """
+    candidatos = [
+        Path("BaseDatos2026.xlsx"),
+        Path("BaseDatos2026(1).xlsx"),
+    ]
+
+    # Añadir cualquier variante BaseDatos2026*.xlsx que exista.
+    for p in sorted(Path(".").glob("BaseDatos2026*.xlsx")):
+        if p not in candidatos:
+            candidatos.append(p)
+
+    # Primero buscar uno que contenga ambas hojas.
+    for archivo in candidatos:
+        if not archivo.exists():
+            continue
+        try:
+            hojas = pd.ExcelFile(archivo).sheet_names
+            if "BS" in hojas and "Tiendas" in hojas:
+                return str(archivo)
+        except Exception:
+            pass
+
+    # Si no existe uno con ambas hojas, usar BaseDatos2026.xlsx si existe.
+    if Path("BaseDatos2026.xlsx").exists():
+        return "BaseDatos2026.xlsx"
+
+    # Último recurso: primer candidato existente.
+    for archivo in candidatos:
+        if archivo.exists():
+            return str(archivo)
+
+    return "BaseDatos2026.xlsx"
+
+
 @st.cache_data
 def load_data() -> pd.DataFrame:
     """Carga datos del archivo Excel y normaliza campos de texto."""
-    df = pd.read_excel("BaseDatos2026.xlsx", sheet_name="BS")
+    archivo_datos = obtener_archivo_datos()
+    df = pd.read_excel(archivo_datos, sheet_name="BS")
 
     # Evita que espacios invisibles o diferencias de mayúsculas/minúsculas
     # hagan desaparecer meses, tiendas o conceptos en los filtros.
@@ -160,7 +199,8 @@ def load_data() -> pd.DataFrame:
 def load_tiendas_m2() -> Dict[str, float]:
     """Lee los metros cuadrados de la hoja Tiendas del mismo Excel."""
     try:
-        t = pd.read_excel("BaseDatos2026.xlsx", sheet_name="Tiendas")
+        archivo_datos = obtener_archivo_datos()
+        t = pd.read_excel(archivo_datos, sheet_name="Tiendas")
     except Exception:
         return {}
     if "Departamento" not in t.columns or "m2" not in t.columns:
@@ -1468,8 +1508,8 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
 
         if not m2_por_tienda:
             st.error(
-                "No se ha podido leer la hoja 'Tiendas' con los metros cuadrados "
-                "en BaseDatos2026.xlsx."
+                "No se ha podido leer la hoja 'Tiendas' con los metros cuadrados. "
+                f"Archivo detectado: {obtener_archivo_datos()}"
             )
             st.stop()
 
