@@ -886,6 +886,8 @@ def render_aggrid_table(
     resaltar_kpi_tiendas: bool = False,
     columnas_comparar: List[str] = None,
     resaltar_rb_tiendas: bool = False,
+    resaltar_extremos_filas: bool = False,
+    columnas_extremos: List[str] = None,
     altura_fila: int = 32,
     altura_cabecera: int = 34,
     clave_preferencias: str = "tabla_general",
@@ -1059,6 +1061,38 @@ def render_aggrid_table(
             rb_verdes[col] = {tienda for tienda, valor in valores.items() if valor == maximo}
             rb_rojos[col] = {tienda for tienda, valor in valores.items() if valor == minimo}
 
+    # Resaltado opcional de mejor/peor valor por columna entre filas.
+    # Se excluye la fila TOTAL para no mezclar el agregado con las tiendas.
+    extremos_mejor = {}
+    extremos_peor = {}
+    if (
+        resaltar_extremos_filas
+        and df_numericos is not None
+        and columnas_extremos
+    ):
+        for col_ext in columnas_extremos:
+            if col_ext not in df_numericos.columns or col_ext not in df_display.columns:
+                continue
+            serie = pd.to_numeric(df_numericos[col_ext], errors="coerce")
+            mascara = pd.Series(True, index=df_numericos.index)
+            if "Tienda" in df_numericos.columns:
+                mascara = (
+                    df_numericos["Tienda"].astype(str).str.strip().str.upper() != "TOTAL"
+                )
+            # Para mejor/peor se excluyen valores vacíos, NaN y cero.
+            # Así una tienda sin dato real no aparece artificialmente como "peor".
+            validos = serie[mascara & serie.notna() & serie.ne(0)]
+            if validos.empty:
+                continue
+            maximo = validos.max()
+            minimo = validos.min()
+            extremos_mejor[col_ext] = set(
+                df_numericos.loc[mascara & serie.eq(maximo), "Tienda"].astype(str)
+            )
+            extremos_peor[col_ext] = set(
+                df_numericos.loc[mascara & serie.eq(minimo), "Tienda"].astype(str)
+            )
+
     gb = GridOptionsBuilder.from_dataframe(df_display)
     # El usuario puede redimensionar arrastrando el borde de la cabecera
     # y reordenar columnas arrastrando la propia cabecera.
@@ -1119,9 +1153,43 @@ def render_aggrid_table(
             col_norm = str(col).strip().upper()
             es_columna_total = es_columna_resumen(col)
 
+            # En Eficiencia de Inventario: mejor valor verde y peor naranja.
+            if col in extremos_mejor or col in extremos_peor:
+                mejores = ",".join(repr(x) for x in sorted(extremos_mejor.get(col, set())))
+                peores = ",".join(repr(x) for x in sorted(extremos_peor.get(col, set())))
+                estilo_extremos_js = JsCode(
+                    f"""
+                    function(params) {{
+                        const tienda = params.data && params.data.Tienda !== undefined
+                            ? String(params.data.Tienda)
+                            : '';
+                        const mejores = [{mejores}];
+                        const peores = [{peores}];
+
+                        let estilo = {{'textAlign': 'right'}};
+
+                        if (mejores.includes(tienda)) {{
+                            estilo['backgroundColor'] = '#d9ead3';
+                            estilo['fontWeight'] = '700';
+                        }} else if (peores.includes(tienda)) {{
+                            estilo['backgroundColor'] = '#fce5cd';
+                            estilo['fontWeight'] = '700';
+                        }}
+
+                        const raw = params.value;
+                        const texto = raw === null || raw === undefined ? '' : String(raw).trim();
+                        if (texto.startsWith('-') || /^\\(.*\\)$/.test(texto)) {{
+                            estilo['color'] = '#d00000';
+                        }}
+                        return estilo;
+                    }}
+                    """
+                )
+                cell_style = estilo_extremos_js
+
             # Las columnas de total/promedio/acumulado tienen sombreado propio
             # y no usan el semáforo verde/rojo comparativo.
-            if es_columna_total:
+            elif es_columna_total:
                 estilo_total_js = JsCode(
                     r"""
                     function(params) {
@@ -3037,19 +3105,22 @@ Una tienda eficiente no es necesariamente la que menos stock tiene, sino la que 
 
 ---
 
-### 🟢 Mejor / 🔴 Peor
+### 🟢 Mejor / 🟠 Peor
+
+En cada columna del informe, el **mejor valor válido entre las tiendas seleccionadas aparece sombreado en verde** y el **peor en naranja**. Los valores **en blanco, sin dato o iguales a cero** se excluyen de la comparación. La fila TOTAL tampoco participa en el semáforo.
+
 
 **Ventas / Stock**  
 🟢 **Mayor = mejor.** La tienda genera más ventas por cada euro mantenido en inventario.  
-🔴 **Menor = peor.** El stock genera relativamente pocas ventas.
+🟠 **Menor = peor.** El stock genera relativamente pocas ventas.
 
 **Margen / Stock**  
 🟢 **Mayor = mejor.** Es el indicador principal del ranking: se obtiene más margen bruto por cada euro de inventario medio.  
-🔴 **Menor = peor.** El inventario está produciendo menos margen bruto.
+🟠 **Menor = peor.** El inventario está produciendo menos margen bruto.
 
 **Rotación Coste / Stock**  
 🟢 **En general, mayor = mayor rotación.** La mercancía se renueva más veces durante el periodo.  
-🔴 **Muy bajo = posible exceso de stock o baja salida.**  
+🟠 **Muy bajo = posible exceso de stock o baja salida.**  
 ⚠️ Un valor excesivamente alto también debe revisarse, porque podría indicar un stock demasiado ajustado y riesgo de faltas de mercancía.
 
 **Inventario Medio**  
@@ -3066,6 +3137,18 @@ Cuanto mayor sea el número del ranking, menor es el margen generado por euro de
         render_aggrid_table(
             df_eff_disp,
             modo="auto",
+            df_numericos=df_eff_num,
+            resaltar_extremos_filas=True,
+            columnas_extremos=[
+                "Inventario Medio",
+                "Ventas Periodo",
+                "% Margen Acumulado",
+                "Margen Bruto Periodo",
+                "Coste Ventas Periodo",
+                "Ventas / Stock",
+                "Margen / Stock",
+                "Rotación Coste / Stock",
+            ],
             altura_fila=32,
             altura_cabecera=38,
             clave_preferencias="eficiencia_inventario",
