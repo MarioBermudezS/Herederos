@@ -824,6 +824,14 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
             "Comparativa Interanual (Año vs Año Anterior)",
         ],
     )
+
+    orientacion_rb = st.sidebar.radio(
+        "Orientación de la tabla R.B.",
+        [
+            "Meses en filas / Tiendas en columnas",
+            "Tiendas en filas / Meses en columnas",
+        ],
+    )
     
     tiendas_rb = st.sidebar.multiselect(
         "Selecciona tiendas",
@@ -841,65 +849,127 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
     if tipo_analisis_rb == "Evolución Mensual por Tienda":
         st.subheader(f"Análisis R.B. - Evolución Mensual por Tienda ({ano})")
 
-        # Vista transpuesta:
-        # Primera columna = meses
-        # Columnas siguientes = tiendas
-        columnas_tabla = ["Mes"] + tiendas_rb
-        if len(tiendas_rb) > 1:
-            columnas_tabla.append("TOTAL GRUPO")
+        if orientacion_rb == "Meses en filas / Tiendas en columnas":
+            # =============================================================
+            # ORIENTACIÓN 1: Meses en filas / Tiendas en columnas
+            # =============================================================
+            columnas_tabla = ["Mes"] + tiendas_rb
+            if len(tiendas_rb) > 1:
+                columnas_tabla.append("TOTAL GRUPO")
 
-        filas_display = []
-        filas_nums = []
+            filas_display = []
+            filas_nums = []
 
-        for mes in meses_sel:
-            fila_d = [mes]
-            fila_n = [mes]
+            for mes in meses_sel:
+                fila_d = [mes]
+                fila_n = [mes]
+
+                for tienda in tiendas_rb:
+                    df_filtrado = obtener_filtro_datos(df, ano, [mes], [tienda])
+                    val_rb = calcular_rb_puro(df_filtrado)
+                    fila_n.append(val_rb)
+                    fila_d.append(formato_porcentaje(val_rb))
+
+                if len(tiendas_rb) > 1:
+                    df_total = obtener_filtro_datos(df, ano, [mes], tiendas_rb)
+                    val_total = calcular_rb_puro(df_total)
+                    fila_n.append(val_total)
+                    fila_d.append(formato_porcentaje(val_total))
+
+                filas_display.append(fila_d)
+                filas_nums.append(fila_n)
+
+            if len(meses_sel) > 1:
+                fila_d = ["ACUMULADO"]
+                fila_n = ["ACUMULADO"]
+
+                for tienda in tiendas_rb:
+                    df_acum = obtener_filtro_datos(df, ano, meses_sel, [tienda])
+                    val_acum = calcular_rb_puro(df_acum)
+                    fila_n.append(val_acum)
+                    fila_d.append(formato_porcentaje(val_acum))
+
+                if len(tiendas_rb) > 1:
+                    df_acum_total = obtener_filtro_datos(df, ano, meses_sel, tiendas_rb)
+                    val_acum_total = calcular_rb_puro(df_acum_total)
+                    fila_n.append(val_acum_total)
+                    fila_d.append(formato_porcentaje(val_acum_total))
+
+                filas_display.append(fila_d)
+                filas_nums.append(fila_n)
+
+            df_res_d = pd.DataFrame(filas_display, columns=columnas_tabla)
+            df_res_n = pd.DataFrame(filas_nums, columns=columnas_tabla)
+
+            render_aggrid_rb_horizontal(
+                df_res_d,
+                df_res_n,
+                tiendas_rb,
+                altura_fila=36,
+                altura_cabecera=38,
+            )
+
+        else:
+            # =============================================================
+            # ORIENTACIÓN 2: Tiendas en filas / Meses en columnas
+            # =============================================================
+            columnas_tabla = ["Resultados"] + meses_sel
+            if len(meses_sel) > 1:
+                columnas_tabla.append("Promedio Acumulado")
+
+            filas_display = []
+            filas_nums = []
 
             for tienda in tiendas_rb:
-                df_filtrado = obtener_filtro_datos(df, ano, [mes], [tienda])
-                val_rb = calcular_rb_puro(df_filtrado)
-                fila_n.append(val_rb)
-                fila_d.append(formato_porcentaje(val_rb))
+                fila_d = [tienda]
+                fila_n = [tienda]
+
+                for mes in meses_sel:
+                    df_filtrado = obtener_filtro_datos(df, ano, [mes], [tienda])
+                    val_rb = calcular_rb_puro(df_filtrado)
+                    fila_n.append(val_rb)
+                    fila_d.append(formato_porcentaje(val_rb))
+
+                if len(meses_sel) > 1:
+                    df_acum = obtener_filtro_datos(df, ano, meses_sel, [tienda])
+                    val_acum = calcular_rb_puro(df_acum)
+                    fila_n.append(val_acum)
+                    fila_d.append(formato_porcentaje(val_acum))
+
+                filas_display.append(fila_d)
+                filas_nums.append(fila_n)
 
             if len(tiendas_rb) > 1:
-                df_total = obtener_filtro_datos(df, ano, [mes], tiendas_rb)
-                val_total = calcular_rb_puro(df_total)
-                fila_n.append(val_total)
-                fila_d.append(formato_porcentaje(val_total))
+                fila_d_tot = ["TOTAL GRUPO"]
+                fila_n_tot = ["TOTAL GRUPO"]
 
-            filas_display.append(fila_d)
-            filas_nums.append(fila_n)
+                for mes in meses_sel:
+                    df_filtrado = obtener_filtro_datos(df, ano, [mes], tiendas_rb)
+                    val_m = calcular_rb_puro(df_filtrado)
+                    fila_n_tot.append(val_m)
+                    fila_d_tot.append(formato_porcentaje(val_m))
 
-        # Fila de acumulado para los meses seleccionados
-        if len(meses_sel) > 1:
-            fila_d = ["ACUMULADO"]
-            fila_n = ["ACUMULADO"]
+                if len(meses_sel) > 1:
+                    df_acum = obtener_filtro_datos(df, ano, meses_sel, tiendas_rb)
+                    val_tot_ac = calcular_rb_puro(df_acum)
+                    fila_n_tot.append(val_tot_ac)
+                    fila_d_tot.append(formato_porcentaje(val_tot_ac))
 
-            for tienda in tiendas_rb:
-                df_acum = obtener_filtro_datos(df, ano, meses_sel, [tienda])
-                val_acum = calcular_rb_puro(df_acum)
-                fila_n.append(val_acum)
-                fila_d.append(formato_porcentaje(val_acum))
+                filas_display.append(fila_d_tot)
+                filas_nums.append(fila_n_tot)
 
-            if len(tiendas_rb) > 1:
-                df_acum_total = obtener_filtro_datos(df, ano, meses_sel, tiendas_rb)
-                val_acum_total = calcular_rb_puro(df_acum_total)
-                fila_n.append(val_acum_total)
-                fila_d.append(formato_porcentaje(val_acum_total))
+            df_res_d = pd.DataFrame(filas_display, columns=columnas_tabla)
+            df_res_n = pd.DataFrame(filas_nums, columns=columnas_tabla)
 
-            filas_display.append(fila_d)
-            filas_nums.append(fila_n)
-
-        df_res_d = pd.DataFrame(filas_display, columns=columnas_tabla)
-        df_res_n = pd.DataFrame(filas_nums, columns=columnas_tabla)
-
-        render_aggrid_rb_horizontal(
-            df_res_d,
-            df_res_n,
-            tiendas_rb,
-            altura_fila=36,
-            altura_cabecera=38,
-        )
+            render_aggrid_table(
+                df_res_d,
+                modo="auto",
+                df_numericos=df_res_n,
+                resaltar_rb_tiendas=len(tiendas_rb) > 1,
+                columnas_comparar=tiendas_rb if len(tiendas_rb) > 1 else None,
+                altura_fila=36,
+                altura_cabecera=38,
+            )
 
         descargar_excel(
             df_res_n,
