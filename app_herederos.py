@@ -361,14 +361,14 @@ def render_aggrid_table(df_display: pd.DataFrame, modo: str = "auto") -> None:
     gb.configure_grid_options(
         domLayout="normal",
         suppressRowClickSelection=True,
-        rowHeight=28,
-        headerHeight=30,
+        rowHeight=32,
+        headerHeight=34,
         getRowStyle=get_row_style,
         suppressHorizontalScroll=False,
     )
 
     # Altura calculada para mostrar todas las filas sin scroll vertical interno.
-    altura_tabla = 34 + (len(df_display) * 28)
+    altura_tabla = 34 + (len(df_display) * 32)
 
     AgGrid(
         df_display,
