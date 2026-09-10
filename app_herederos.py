@@ -396,6 +396,15 @@ def render_aggrid_table(
             if col == "Resultados":
                 continue
 
+            # Totales, promedios y acumulados no participan en máximos/mínimos.
+            col_norm = str(col).strip().upper()
+            if (
+                "TOTAL" in col_norm
+                or "PROMEDIO" in col_norm
+                or "ACUMULADO" in col_norm
+            ):
+                continue
+
             valores = {}
             for _, fila in filas_tiendas.iterrows():
                 try:
@@ -460,7 +469,7 @@ def render_aggrid_table(
                 width=ancho,
                 minWidth=120,
                 maxWidth=230,
-                cellStyle={"textAlign": "left"},
+                cellStyle={"textAlign": "left", "fontWeight": "600"},
             )
         else:
             ancho = calcular_ancho_columna(df_display, col, 74)
@@ -580,6 +589,16 @@ def render_aggrid_rb_horizontal(
 
     for idx, fila in df_numericos.iterrows():
         etiqueta = str(fila["Mes"])
+
+        # Totales/promedios/acumulados no participan en máximos/mínimos.
+        etiqueta_norm = etiqueta.strip().upper()
+        if (
+            "TOTAL" in etiqueta_norm
+            or "PROMEDIO" in etiqueta_norm
+            or "ACUMULADO" in etiqueta_norm
+        ):
+            continue
+
         valores = {}
 
         for tienda in tiendas:
