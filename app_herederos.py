@@ -1,25 +1,24 @@
 import io
 import pandas as pd
 import streamlit as st
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS optimizado para expansión total al 100% y distribución fluida
+# CSS optimizado para eliminar márgenes y aprovechar el 100% de la pantalla
 st.markdown(
     """
     <style>
-    /* Ocultar menú de Streamlit, footer y enlace a GitHub */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     .viewerBadge_container {display: none !important;}
     a[href*="github.com"] {display: none !important;}
     
-    /* Expandir la ventana al máximo absoluto y eliminar márgenes laterales */
     .block-container {
         padding-top: 0.5rem !important;
         padding-bottom: 0.5rem !important;
-        padding-left: 1.5rem !important;
-        padding-right: 1.5rem !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
         max-width: 100% !important;
     }
     h1 {
@@ -29,43 +28,6 @@ st.markdown(
     h3 {
         font-size: 0.95rem !important;
         margin-bottom: 0.1rem !important;
-    }
-    
-    /* Forzar que el contenedor de la tabla ocupe el 100% de la pantalla */
-    div[data-testid="stTable"], div.stTable {
-        width: 100% !important;
-        overflow-x: auto !important;
-    }
-    
-    table {
-        width: 100% !important;
-        font-size: 11px !important;
-        border-collapse: collapse !important;
-        table-layout: auto !important;
-    }
-    th {
-        padding: 6px 12px !important;
-        white-space: nowrap !important;
-        font-weight: bold !important;
-    }
-    td {
-        padding: 5px 12px !important;
-        white-space: nowrap !important;
-    }
-    th:first-child, td:first-child {
-        width: 25% !important;
-        min-width: 220px !important;
-        text-align: left !important;
-        padding-left: 10px !important;
-        position: sticky !important;
-        left: 0;
-        background-color: inherit;
-        z-index: 2;
-    }
-    th:not(:first-child), td:not(:first-child) {
-        text-align: right !important;
-        padding-right: 12px !important;
-        white-space: nowrap !important;
     }
     </style>
 """,
@@ -91,7 +53,6 @@ except Exception as e:
 # Menú lateral para filtros
 st.sidebar.header("Parámetros del Informe")
 
-# Selector del Módulo Principal
 modulo_principal = st.sidebar.radio(
     "Módulo de Análisis",
     [
@@ -101,7 +62,6 @@ modulo_principal = st.sidebar.radio(
     ],
 )
 
-# Restringir años exclusivamente de 2024 a 2026
 anos_disponibles = [2024, 2025, 2026]
 if "Año" in df.columns:
   anos_excel = sorted(df["Año"].dropna().unique())
@@ -111,7 +71,6 @@ if not anos_disponibles:
 
 ano = st.sidebar.selectbox("Año principal", anos_disponibles)
 
-# Filtrar departamentos exclusivamente del año seleccionado
 df_ano = df[df["Año"] == ano] if "Año" in df.columns else df
 departamentos_disponibles = (
     sorted(df_ano["Departamento"].dropna().unique())
@@ -119,7 +78,6 @@ departamentos_disponibles = (
     else []
 )
 
-# Selección múltiple de meses ordenados cronológicamente
 meses_orden = [
     "Enero",
     "Febrero",
@@ -144,6 +102,53 @@ if not meses_disponibles:
 meses_sel = st.sidebar.multiselect(
     "Selecciona mes(es)", meses_disponibles, default=meses_disponibles[:1]
 )
+
+
+def render_tabla_aggrid(df_display):
+  """Función profesional que renderiza la tabla usando AgGrid
+
+  garantizando autoajuste, alineación correcta, columna fija y altura controlada.
+  """
+  gb = GridOptionsBuilder.from_dataframe(df_display)
+  gb.configure_default_column(
+      resizable=True,
+      filterable=False,
+      sortable=False,
+      editable=False,
+      suppressMenu=True,
+  )
+
+  # Fijar la primera columna de conceptos / resultados a la izquierda
+  if len(df_display.columns) > 0:
+    first_col = df_display.columns[0]
+    gb.configure_column(
+        first_col,
+        pinned="left",
+        width=220,
+        minWidth=190,
+        cellStyle={"fontWeight": "bold", "textAlign": "left"},
+    )
+
+  # Alinear el resto de columnas numéricas a la derecha
+  for col in df_display.columns[1:]:
+    gb.configure_column(
+        col, width=125, minWidth=105, cellStyle={"textAlign": "right"}
+    )
+
+  gb.configure_grid_options(
+      suppressRowClickSelection=True,
+  )
+  gridOptions = gb.build()
+
+  AgGrid(
+      df_display,
+      gridOptions=gridOptions,
+      height=550,  # Altura fija con scroll vertical para ver todas las filas perfectamente
+      update_mode=GridUpdateMode.NO_UPDATE,
+      fit_columns_on_grid_load=True,
+      allow_unsafe_jscode=True,
+      theme="balham",
+  )
 
 
 # =====================================================================
@@ -276,23 +281,7 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
     df_res_d = pd.DataFrame(filas_display, columns=columnas_tabla)
     df_res_n = pd.DataFrame(filas_nums, columns=columnas_tabla)
 
-    def estilizar_rb(s):
-      styles = []
-      for i, row in df_res_d.iterrows():
-        is_total = row["Resultados"] == "TOTAL GRUPO"
-        row_styles = [
-            "text-align: left !important; padding-left: 6px;"
-            + ("font-weight: bold; background-color: #d1fae5;" if is_total else "")
-        ]
-        for col in columnas_tabla[1:]:
-          c_style = "text-align: right !important; padding-right: 8px;"
-          if is_total or col == "Promedio Acumulado":
-            c_style += " background-color: #d1fae5; font-weight: bold;"
-          row_styles.append(c_style)
-        styles.append(row_styles)
-      return pd.DataFrame(styles, index=s.index, columns=s.columns)
-
-    st.table(df_res_d.style.apply(estilizar_rb, axis=None))
+    render_tabla_aggrid(df_res_d)
 
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -347,22 +336,7 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
     df_acum_d = pd.DataFrame(filas_acum_d, columns=["Resultados", f"Acumulado {nombre_m_str}"])
     df_acum_n = pd.DataFrame(filas_acum_n, columns=["Resultados", f"Acumulado {nombre_m_str}"])
 
-    def estilizar_acum(s):
-      styles = []
-      for i, row in df_acum_d.iterrows():
-        is_tot = row["Resultados"] == "TOTAL GRUPO"
-        row_styles = [
-            "text-align: left !important; padding-left: 6px;"
-            + ("font-weight: bold; background-color: #d1fae5;" if is_tot else "")
-        ]
-        c_style = "text-align: right !important; padding-right: 8px;"
-        if is_tot:
-          c_style += " background-color: #d1fae5; font-weight: bold;"
-        row_styles.append(c_style)
-        styles.append(row_styles)
-      return pd.DataFrame(styles, index=s.index, columns=s.columns)
-
-    st.table(df_acum_d.style.apply(estilizar_acum, axis=None))
+    render_tabla_aggrid(df_acum_d)
 
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -453,28 +427,7 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
     df_inter_d = pd.DataFrame(filas_inter_d, columns=columnas_interanual_rb)
     df_inter_n = pd.DataFrame(filas_inter_n, columns=columnas_interanual_rb)
 
-    def estilizar_inter(s):
-      styles = []
-      for i, row in df_inter_d.iterrows():
-        is_tot = row["Resultados"] == "TOTAL GRUPO"
-        row_styles = [
-            "text-align: left !important; padding-left: 6px;"
-            + ("font-weight: bold; background-color: #d1fae5;" if is_tot else "")
-        ]
-        for col_idx, col in enumerate(columnas_interanual_rb[1:], start=1):
-          c_style = "text-align: right !important; padding-right: 8px;"
-          if is_tot:
-            c_style += " background-color: #d1fae5; font-weight: bold;"
-          if col == "Var. pp":
-            val_num = filas_inter_n[i][col_idx]
-            if val_num != 0:
-              color_v = "#16a34a" if val_num > 0 else "#dc2626"
-              c_style += f" color: {color_v}; font-weight: bold;"
-          row_styles.append(c_style)
-        styles.append(row_styles)
-      return pd.DataFrame(styles, index=s.index, columns=s.columns)
-
-    st.table(df_inter_d.style.apply(estilizar_inter, axis=None))
+    render_tabla_aggrid(df_inter_d)
 
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -747,12 +700,6 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
   filas_tabla_display = []
   filas_valores_numericos = []
 
-  conceptos_gastos = [
-      "Coste Ventas", "Gastos Personal", "Alquileres", "Reparaciones",
-      "Seguros", "Suministros", "Otros Servicios", "TOTAL GASTOS OPERATIVOS",
-      "Amortizaciones", "GASTOS ESTRUCTURA", "Gastos Financieros"
-  ]
-
   for concepto in conceptos:
     fila_disp = [concepto]
     fila_num = [concepto]
@@ -858,85 +805,7 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
   df_kpi_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
   df_kpi_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
 
-  campos_destacados = [
-      "MARGEN BRUTO",
-      "R. B.",
-      "Ingresos Operativos",
-      "TOTAL GASTOS OPERATIVOS",
-      "GASTOS ESTRUCTURA",
-      "B.A.I.I.",
-      "RDO. FINANCIERO",
-      "B.A.I.",
-  ]
-
-  def aplicar_estilos_kpi(s):
-    styles = []
-    es_multi_tienda = (modo_analisis == "Comparativa Multi-Tienda (Totales)" and len(tiendas) > 1 and opcion_multitienda == "Total") or \
-                      (modo_analisis == "Evolución Mensual / Tienda" and len(tiendas) > 1)
-
-    for i, row in df_kpi_display.iterrows():
-      concepto = row["Resultados"]
-      is_destacado = concepto in campos_destacados
-      row_styles = [
-          "text-align: left !important; padding-left: 6px;"
-          + ("font-weight: bold; background-color: #eef2f7;" if is_destacado else "")
-      ]
-
-      tiendas_valores = []
-      if es_multi_tienda:
-        for col_idx, col in enumerate(columnas_tabla[1:], start=1):
-          if col != "Total":
-            val_n = df_kpi_numericos.loc[i, col]
-            if isinstance(val_n, (int, float)):
-              tiendas_valores.append(val_n)
-
-      max_val = max(tiendas_valores) if tiendas_valores else None
-      min_val = min(tiendas_valores) if tiendas_valores else None
-
-      for col_idx, col in enumerate(columnas_tabla[1:], start=1):
-        num_val = df_kpi_numericos.loc[i, col]
-        is_negativo = isinstance(num_val, (int, float)) and num_val < 0
-        is_columna_total = col == "Total" or col == f"Total {ano}"
-        cell_style = "text-align: right !important; padding-right: 8px;"
-
-        if is_columna_total:
-          cell_style += " background-color: #d1fae5;"
-        elif is_destacado:
-          cell_style += " background-color: #eef2f7;"
-        if is_destacado:
-          cell_style += " font-weight: bold;"
-
-        if es_multi_tienda and col != "Total" and max_val is not None and min_val is not None and max_val != min_val:
-          if isinstance(num_val, (int, float)):
-            if concepto in ["RDO. FINANCIERO", "Resultados Extraordinarios"]:
-              if num_val == min_val:
-                cell_style += " color: #16a34a; background-color: #d1fae5; font-weight: bold;"
-              elif num_val == max_val:
-                cell_style += " color: #dc2626; background-color: #fee2e2; font-weight: bold;"
-            elif concepto in conceptos_gastos:
-              if num_val == min_val:
-                cell_style += " color: #16a34a; background-color: #d1fae5; font-weight: bold;"
-              elif num_val == max_val:
-                cell_style += " color: #dc2626; background-color: #fee2e2; font-weight: bold;"
-            else:
-              if num_val == max_val:
-                cell_style += " color: #16a34a; background-color: #d1fae5; font-weight: bold;"
-              elif num_val == min_val:
-                cell_style += " color: #dc2626; background-color: #fee2e2; font-weight: bold;"
-
-        if col == "Var. pp" and isinstance(num_val, (int, float)):
-          if num_val != 0:
-            color_v = "#16a34a" if num_val > 0 else "#dc2626"
-            cell_style += f" color: {color_v}; font-weight: bold;"
-        else:
-          if is_negativo and not (es_multi_tienda and col != "Total"):
-            cell_style += " color: #dc2626; font-weight: bold;"
-
-        row_styles.append(cell_style)
-      styles.append(row_styles)
-    return pd.DataFrame(styles, index=s.index, columns=s.columns)
-
-  st.table(df_kpi_display.style.apply(aplicar_estilos_kpi, axis=None))
+  render_tabla_aggrid(df_kpi_display)
 
   output = io.BytesIO()
   with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -1299,63 +1168,7 @@ else:
   df_resultado_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
   df_valores_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
 
-  campos_destacados = [
-      "MARGEN BRUTO",
-      "R. B.",
-      "Ingresos Operativos",
-      "TOTAL GASTOS OPERATIVOS",
-      "GASTOS ESTRUCTURA",
-      "B.A.I.I.",
-      "RDO. FINANCIERO",
-      "B.A.I.",
-  ]
-  conceptos_ingresos = [
-      "Ventas",
-      "MARGEN BRUTO",
-      "R. B.",
-      "Otros Ingresos",
-      "Ingresos Operativos",
-      "Ingresos Financieros",
-      "B.A.I.I.",
-      "RDO. FINANCIERO",
-      "B.A.I.",
-  ]
-
-  def aplicar_estilos_styler(s):
-    styles = []
-    for i, row in df_resultado_display.iterrows():
-      concepto = row["Resultados"]
-      is_destacado = concepto in campos_destacados
-      row_styles = [
-          "text-align: left !important; padding-left: 6px;"
-          + ("font-weight: bold; background-color: #eef2f7;" if is_destacado else "")
-      ]
-      for col_idx, col in enumerate(columnas_tabla[1:], start=1):
-        num_val = df_valores_numericos.loc[i, col]
-        is_negativo = isinstance(num_val, (int, float)) and num_val < 0
-        is_columna_total = col == "Total" or col == f"Total {ano}"
-        cell_style = "text-align: right !important; padding-right: 8px;"
-        if is_columna_total:
-          cell_style += " background-color: #d1fae5;"
-        elif is_destacado:
-          cell_style += " background-color: #eef2f7;"
-        if is_destacado:
-          cell_style += " font-weight: bold;"
-        if col in ["Var. €", "Var. %"] and isinstance(num_val, (int, float)):
-          if num_val != 0:
-            es_ingreso = concepto in conceptos_ingresos
-            color_var = "#16a34a" if (num_val > 0 if es_ingreso else num_val < 0) else "#dc2626"
-            cell_style += f" color: {color_var}; font-weight: bold;"
-        else:
-          if is_negativo:
-            cell_style += " color: #dc2626; font-weight: bold;"
-          elif is_destacado:
-            cell_style += " color: #1f2937;"
-        row_styles.append(cell_style)
-      styles.append(row_styles)
-    return pd.DataFrame(styles, index=s.index, columns=s.columns)
-
-  st.table(df_resultado_display.style.apply(aplicar_estilos_styler, axis=None))
+  render_tabla_aggrid(df_resultado_display)
 
   output = io.BytesIO()
   with pd.ExcelWriter(output, engine="openpyxl") as writer:
