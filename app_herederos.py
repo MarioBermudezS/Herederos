@@ -1,10 +1,11 @@
 import io
 import pandas as pd
 import streamlit as st
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-# CSS avanzado para fuentes compactas, celdas reducidas y pantalla completa absoluta
+# CSS limpio para aprovechar el ancho de pantalla
 st.markdown(
     """
     <style>
@@ -14,33 +15,11 @@ st.markdown(
     a[href*="github.com"] {display: none !important;}
     
     .block-container {
-        padding-top: 0.2rem !important;
-        padding-bottom: 0.2rem !important;
-        padding-left: 0.5rem !important;
-        padding-right: 0.5rem !important;
+        padding-top: 1rem !important;
+        padding-bottom: 1rem !important;
+        padding-left: 1.5rem !important;
+        padding-right: 1.5rem !important;
         max-width: 100% !important;
-    }
-    h1 {
-        font-size: 1.05rem !important;
-        margin-bottom: 0.1rem !important;
-    }
-    h3 {
-        font-size: 0.85rem !important;
-        margin-bottom: 0.1rem !important;
-    }
-    
-    /* Reducción máxima de tamaño de letra y padding en tablas Streamlit */
-    dataframe, [data-testid="stDataFrame"] {
-        font-size: 10.5px !important;
-    }
-    th {
-        font-size: 10.5px !important;
-        padding: 2px 4px !important.
-        background-color: #f1f5f9 !important;
-    }
-    td {
-        font-size: 10.5px !important;
-        padding: 2px 4px !important;
     }
     </style>
 """,
@@ -107,7 +86,7 @@ meses_orden = [
 ]
 meses_excel = (
     df["Mes"].dropna().unique().tolist() if "Mes" in df.columns else ["Enero"]
-)
+]
 meses_disponibles = [m for m in meses_orden if m in meses_excel]
 if not meses_disponibles:
   meses_disponibles = meses_excel
@@ -129,61 +108,97 @@ campos_destacados = [
     "TOTAL GRUPO",
 ]
 
+# JsCode avanzado para estilos, negritas, totales y sombreados condicionales (KPI y Cuenta Resultados)
+cell_style_jscode = JsCode(
+    """
+function(params) {
+    var rowNode = params.node;
+    var colDef = params.colDef;
+    var val = params.value;
+    var field = colDef.field;
+    var rowLabel = rowNode.data.Resultados || '';
 
-# Función robusta de estilizado (Negritas en filas clave + Totales + Colores Verde/Rojo)
-def aplicar_estilos_dataframe(df_styled):
-  def style_row(row):
-    styles = [""] * len(row)
-    row_label = str(row.iloc[0])
-    is_destacado = (
-        row_label in campos_destacados or row_label == "TOTAL GRUPO"
+    var isDestacado = [
+        "MARGEN BRUTO", "R. B.", "Ingresos Operativos", 
+        "TOTAL GASTOS OPERATIVOS", "GASTOS ESTRUCTURA", 
+        "B.A.I.I.", "RDO. FINANCIERO", "Resultados Extraordinarios", "B.A.I.", "TOTAL GRUPO"
+    ].includes(rowLabel);
+
+    var isTotalCol = field === "Total" || field.startsWith("Total ") || field.startsWith("Promedio");
+    var isFirstCol = colDef.pinned === "left" || colDef.field === "Resultados";
+
+    var style = {
+        'textAlign': isFirstCol ? 'left' : 'right',
+        'fontWeight': (isDestacado || isTotalCol) ? 'bold' : 'normal'
+    };
+
+    if (isTotalCol) {
+        style['backgroundColor'] = '#d1fae5';
+    } else if (isDestacado) {
+        style['backgroundColor'] = '#eef2f7';
+    }
+
+    if (typeof val === 'string') {
+        if (field === "Var. pp" || field === "Var. %" || field === "Var. €") {
+            if (!val.includes('-') && val !== '-' && val !== '0,00%' && val !== '0,00 pp' && val !== '0,00 €') {
+                style['color'] = '#16a34a';
+                style['backgroundColor'] = '#dcfce7';
+                style['fontWeight'] = 'bold';
+            } else if (val.includes('-')) {
+                style['color'] = '#dc2626';
+                style['backgroundColor'] = '#fee2e2';
+                style['fontWeight'] = 'bold';
+            }
+        } else if (val.includes('-') && !val.includes('%') && !val.includes('pp')) {
+            style['color'] = '#dc2626';
+            style['backgroundColor'] = '#fee2e2';
+            style['fontWeight'] = 'bold';
+        }
+    }
+
+    return style;
+}
+"""
+)
+
+
+def render_tabla_aggrid(df_display):
+  gb = GridOptionsBuilder.from_dataframe(df_display)
+  gb.configure_default_column(
+      resizable=True,
+      filterable=False,
+      sortable=False,
+      editable=False,
+      suppressMenu=True,
+      cellStyle=cell_style_jscode,
+  )
+
+  if len(df_display.columns) > 0:
+    first_col = df_display.columns[0]
+    gb.configure_column(
+        first_col,
+        pinned="left",
+        width=220,
+        minWidth=180,
     )
 
-    for i, col_name in enumerate(df_styled.columns):
-      val = row.iloc[i]
-      val_str = str(val)
+  for col in df_display.columns[1:]:
+    gb.configure_column(col, width=120, minWidth=100)
 
-      is_total_col = (
-          col_name == "Total"
-          or str(col_name).startswith("Total ")
-          or str(col_name).startswith("Promedio")
-      )
+  gb.configure_grid_options(
+      suppressRowClickSelection=True,
+  )
+  gridOptions = gb.build()
 
-      bg = ""
-      color = ""
-      weight = "bold" if (is_destacado or is_total_col or i == 0) else "normal"
-
-      if is_total_col:
-        bg = "background-color: #d1fae5;"
-      elif is_destacado:
-        bg = "background-color: #eef2f7;"
-
-      # Colores condicionales en verde y rojo para variaciones y negativos
-      if (
-          "Var." in str(col_name)
-          or "%" in val_str
-          or "€" in val_str
-          or "pp" in val_str
-      ):
-        if "-" in val_str and val_str.strip() != "-":
-          color = "color: #dc2626;"
-          bg = "background-color: #fee2e2;"
-          weight = "bold"
-        elif (
-            ("Var." in str(col_name) or "pp" in str(col_name))
-            and val_str != "-"
-            and val_str != "0,00%"
-            and val_str != "0,00 pp"
-            and not "-" in val_str
-        ):
-          color = "color: #16a34a;"
-          bg = "background-color: #dcfce7;"
-          weight = "bold"
-
-      styles[i] = f"{bg} {color} font-weight: {weight};"
-    return styles
-
-  return df_styled.style.apply(style_row, axis=1)
+  AgGrid(
+      df_display,
+      gridOptions=gridOptions,
+      height=520,
+      update_mode=GridUpdateMode.NO_UPDATE,
+      fit_columns_on_grid_load=True,
+      allow_unsafe_jscode=True,
+      theme="balham",
+  )
 
 
 # =====================================================================
@@ -316,11 +331,7 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
     df_res_d = pd.DataFrame(filas_display, columns=columnas_tabla)
     df_res_n = pd.DataFrame(filas_nums, columns=columnas_tabla)
 
-    st.dataframe(
-        aplicar_estilos_dataframe(df_res_d),
-        use_container_width=True,
-        hide_index=True,
-    )
+    render_tabla_aggrid(df_res_d)
 
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -379,11 +390,7 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         filas_acum_n, columns=["Resultados", f"Acumulado {nombre_m_str}"]
     )
 
-    st.dataframe(
-        aplicar_estilos_dataframe(df_acum_d),
-        use_container_width=True,
-        hide_index=True,
-    )
+    render_tabla_aggrid(df_acum_d)
 
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -474,11 +481,7 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
     df_inter_d = pd.DataFrame(filas_inter_d, columns=columnas_interanual_rb)
     df_inter_n = pd.DataFrame(filas_inter_n, columns=columnas_interanual_rb)
 
-    st.dataframe(
-        aplicar_estilos_dataframe(df_inter_d),
-        use_container_width=True,
-        hide_index=True,
-    )
+    render_tabla_aggrid(df_inter_d)
 
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -856,11 +859,7 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
   df_kpi_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
   df_kpi_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
 
-  st.dataframe(
-      aplicar_estilos_dataframe(df_kpi_display),
-      use_container_width=True,
-      hide_index=True,
-  )
+  render_tabla_aggrid(df_kpi_display)
 
   output = io.BytesIO()
   with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -1223,11 +1222,7 @@ else:
   df_resultado_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
   df_valores_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
 
-  st.dataframe(
-      aplicar_estilos_dataframe(df_resultado_display),
-      use_container_width=True,
-      hide_index=True,
-  )
+  render_tabla_aggrid(df_resultado_display)
 
   output = io.BytesIO()
   with pd.ExcelWriter(output, engine="openpyxl") as writer:
