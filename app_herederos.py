@@ -116,7 +116,7 @@ campos_destacados = [
     "TOTAL GRUPO",
 ]
 
-# JsCode corregido sin errores de sintaxis
+# JsCode avanzado para estilos, negritas, totales y sombreados condicionales en KPI
 cell_style_jscode = JsCode(
     """
 function(params) {
@@ -159,6 +159,7 @@ function(params) {
             }
         } else if (val.includes('-') && !val.includes('%') && !val.includes('pp')) {
             style['color'] = '#dc2626';
+            style['backgroundColor'] = '#fee2e2';
             style['fontWeight'] = 'bold';
         }
     }
@@ -197,8 +198,9 @@ def render_tabla_aggrid(df_display):
   )
   gridOptions = gb.build()
 
+  # Altura calculada exacta para mostrar todas las filas de un vistazo sin scroll interno
   row_count = len(df_display)
-  calculated_height = (row_count + 1) * 36 + 30
+  calculated_height = (row_count + 2) * 38 + 25
 
   AgGrid(
       df_display,
