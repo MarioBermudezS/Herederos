@@ -389,14 +389,36 @@ def estado_columnas_js(clave: str, autoajustar_todas: bool = False) -> JsCode:
             }} catch (e) {{}}
 
             // Primera vez para esta combinación de columnas: autoajuste inicial.
+            // Con muchas columnas se prioriza que entren en el ancho disponible.
             if (!hayEstadoGuardado && !autoajustarTodas) {{
                 try {{
-                    if (params.api && params.api.autoSizeAllColumns) {{
-                        params.api.autoSizeAllColumns(true);
-                    }} else if (params.columnApi && params.columnApi.autoSizeAllColumns) {{
-                        params.columnApi.autoSizeAllColumns(true);
+                    let numeroColumnas = 0;
+                    if (params.api && params.api.getColumnState) {{
+                        numeroColumnas = params.api.getColumnState().length;
                     }}
-                    setTimeout(guardar, 220);
+
+                    if (
+                        numeroColumnas >= 8 &&
+                        params.api &&
+                        params.api.sizeColumnsToFit
+                    ) {{
+                        setTimeout(function() {{
+                            try {{
+                                params.api.sizeColumnsToFit();
+                                guardar();
+                            }} catch (e) {{}}
+                        }}, 120);
+                    }} else {{
+                        if (params.api && params.api.autoSizeAllColumns) {{
+                            params.api.autoSizeAllColumns(true);
+                        }} else if (
+                            params.columnApi &&
+                            params.columnApi.autoSizeAllColumns
+                        ) {{
+                            params.columnApi.autoSizeAllColumns(true);
+                        }}
+                        setTimeout(guardar, 220);
+                    }}
                 }} catch (e) {{}}
             }}
 
@@ -1168,13 +1190,43 @@ meses_sel = st.sidebar.multiselect(
     "Selecciona mes(es)", meses_disponibles, default=meses_disponibles[:1]
 )
 
-# Departamentos disponibles
+# Departamentos disponibles.
+# Regla global: en cualquier pantalla se excluyen las tiendas que no tengan
+# ningún movimiento en el año y meses seleccionados.
 df_ano = df[df["Año"] == ano] if "Año" in df.columns else df
-departamentos_disponibles = (
-    sorted(df_ano["Departamento"].dropna().unique())
-    if "Departamento" in df_ano.columns
-    else []
-)
+
+if "Mes" in df_ano.columns and meses_sel:
+    df_periodo_departamentos = df_ano[df_ano["Mes"].isin(meses_sel)].copy()
+else:
+    df_periodo_departamentos = df_ano.copy()
+
+departamentos_disponibles = []
+if "Departamento" in df_periodo_departamentos.columns:
+    for departamento in sorted(
+        df_periodo_departamentos["Departamento"].dropna().astype(str).str.strip().unique()
+    ):
+        df_dep = df_periodo_departamentos[
+            df_periodo_departamentos["Departamento"].astype(str).str.strip() == departamento
+        ]
+
+        if "Importe D" in df_dep.columns:
+            movimiento = pd.to_numeric(
+                df_dep["Importe D"], errors="coerce"
+            ).fillna(0).abs().sum()
+            tiene_datos = movimiento > 1e-12
+        else:
+            columnas_numericas = [
+                c for c in df_dep.columns
+                if pd.api.types.is_numeric_dtype(df_dep[c])
+                and c != "Año"
+            ]
+            tiene_datos = bool(
+                columnas_numericas
+                and df_dep[columnas_numericas].fillna(0).abs().to_numpy().sum() > 1e-12
+            )
+
+        if tiene_datos:
+            departamentos_disponibles.append(departamento)
 
 # =====================================================================
 # MÓDULO 1: ANÁLISIS ESPECÍFICO DE R.B. (MARGEN BRUTO)
