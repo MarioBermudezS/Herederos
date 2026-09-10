@@ -159,19 +159,9 @@ def obtener_archivo_datos() -> str:
     return str(archivo)
 
 
-def firma_archivo_datos() -> tuple:
-    """
-    Firma del Excel para detectar cambios físicos en el archivo.
-    """
-    archivo = Path(obtener_archivo_datos())
-    stat = archivo.stat()
-    return (str(archivo.resolve()), stat.st_mtime_ns, stat.st_size)
-
-
 
 @st.cache_data
 def load_data() -> pd.DataFrame:
-    _ = firma_archivo_datos()
     """Carga datos del archivo Excel y normaliza campos de texto."""
     archivo_datos = obtener_archivo_datos()
     df = pd.read_excel(archivo_datos, sheet_name="BS")
@@ -196,7 +186,6 @@ def load_data() -> pd.DataFrame:
 
 @st.cache_data
 def load_tiendas_m2() -> Dict[str, float]:
-    _ = firma_archivo_datos()
     """Lee los metros cuadrados de la hoja Tiendas del mismo Excel."""
     try:
         archivo_datos = obtener_archivo_datos()
@@ -218,7 +207,6 @@ def load_tiendas_m2() -> Dict[str, float]:
 
 @st.cache_data
 def load_ajustes_existencias() -> pd.DataFrame:
-    _ = firma_archivo_datos()
     """
     Lee la hoja 'Ajustes' con columnas Año, Mes y Ajuste.
 
@@ -302,7 +290,6 @@ def obtener_ajuste_existencias(ano: int, meses: List[str]) -> float:
 
 @st.cache_data
 def load_margenes_totales_acumulados() -> pd.DataFrame:
-    _ = firma_archivo_datos()
     """
     Lee de forma estricta la hoja MargenesTotalesAcumulados del ERP.
 
@@ -441,7 +428,6 @@ def load_margenes_totales_acumulados() -> pd.DataFrame:
 
 @st.cache_data
 def load_inventario() -> pd.DataFrame:
-    _ = firma_archivo_datos()
     """
     Lee la hoja Inventario organizada por bloques de año.
 
