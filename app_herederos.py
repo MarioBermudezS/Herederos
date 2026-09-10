@@ -94,7 +94,7 @@ meses_orden = [
 ]
 meses_excel = (
     df["Mes"].dropna().unique().tolist() if "Mes" in df.columns else ["Enero"]
-)
+]
 meses_disponibles = [m for m in meses_orden if m in meses_excel]
 if not meses_disponibles:
   meses_disponibles = meses_excel
@@ -116,7 +116,7 @@ campos_destacados = [
     "TOTAL GRUPO",
 ]
 
-# JsCode para aplicar estilos condicionales y negritas profesionales en AgGrid
+# JsCode avanzado para estilos, negritas, totales y colores condicionales en KPIs
 cell_style_jscode = JsCode("""
 function(params) {
     var rowNode = params.node;
@@ -145,17 +145,19 @@ function(params) {
         style['backgroundColor'] = '#eef2f7';
     }
 
-    // Colorear negativos en rojo o variaciones
-    if (typeof val === 'string' && val.includes('-') && !val.includes('%')) {
-        style['color'] = '#dc2626';
-        style['fontWeight'] = 'bold';
-    } else if (field === "Var. pp" || field === "Var. %" || field === "Var. €") {
-        if (typeof val === 'string' && !val.includes('-') && val !== '-' && val !== '0,00%') {
-            style['color'] = '#16a34a';
-            style['fontWeight'] = 'bold';
-        } else if (typeof val === 'string' && val.includes('-')) {
+    // Colorear variaciones y negativos
+    if (typeof val === 'string') {
+        if (val.includes('-') && !val.includes('%') && !val.includes('pp')) {
             style['color'] = '#dc2626';
             style['fontWeight'] = 'bold';
+        } else if (field === "Var. pp" || field === "Var. %" || field === "Var. €") {
+            if (!val.includes('-') && val !== '-' && val !== '0,00%' && val !== '0,00 pp') {
+                style['color'] = '#16a34a';
+                style['fontWeight'] = 'bold';
+            } else if (val.includes('-')) {
+                style['color'] = '#dc2626';
+                style['fontWeight'] = 'bold';
+            }
         }
     }
 
@@ -192,10 +194,14 @@ def render_tabla_aggrid(df_display):
   )
   gridOptions = gb.build()
 
+  # Altura dinámica calculada por número de filas para que salga todo el informe en pantalla sin scroll interno
+  row_count = len(df_display)
+  calculated_height = max(400, (row_count + 1) * 36 + 45)
+
   AgGrid(
       df_display,
       gridOptions=gridOptions,
-      height=580,
+      height=calculated_height,
       update_mode=GridUpdateMode.NO_UPDATE,
       fit_columns_on_grid_load=True,
       allow_unsafe_jscode=True,
