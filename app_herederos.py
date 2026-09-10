@@ -2813,11 +2813,16 @@ elif modulo_principal == "Análisis de Inventario y Rotación":
             resultados_tienda = calcular_resultados(df_ventas)
             ventas = float(resultados_tienda.get("Ventas", 0.0))
             margen_bruto = float(resultados_tienda.get("MARGEN BRUTO", 0.0))
+            coste_ventas = float(resultados_tienda.get("Coste Ventas", 0.0))
 
             metros = m2_por_tienda.get(str(tienda).strip(), 0)
             stock_m2 = inventario_ultimo / metros if metros > 0 else None
             ventas_stock = ventas / inventario_medio if abs(inventario_medio) > 1e-12 else None
             margen_stock = margen_bruto / inventario_medio if abs(inventario_medio) > 1e-12 else None
+            rotacion_coste_stock = (
+                abs(coste_ventas) / inventario_medio
+                if abs(inventario_medio) > 1e-12 else None
+            )
 
             filas_cmp.append(
                 {
@@ -2829,6 +2834,7 @@ elif modulo_principal == "Análisis de Inventario y Rotación":
                     "Stock €/m²": stock_m2,
                     "Ventas / Stock": ventas_stock,
                     "Margen / Stock": margen_stock,
+                    "Rotación Coste / Stock": rotacion_coste_stock,
                 }
             )
 
@@ -2915,6 +2921,22 @@ elif modulo_principal == "Análisis de Inventario y Rotación":
             else None
         )
 
+        coste_ventas_total = 0.0
+        for tienda in tiendas_cmp_sel:
+            df_ventas_tienda_total = obtener_filtro_datos(
+                df, ano, meses_sel, [tienda]
+            )
+            resultados_tienda_total = calcular_resultados(df_ventas_tienda_total)
+            coste_ventas_total += abs(
+                float(resultados_tienda_total.get("Coste Ventas", 0.0))
+            )
+
+        rotacion_coste_stock_total = (
+            coste_ventas_total / inventario_medio_total
+            if abs(inventario_medio_total) > 1e-12
+            else None
+        )
+
         fila_total_cmp = pd.DataFrame([{
             "Tienda": "TOTAL",
             "Inventario Último": inventario_ultimo_total,
@@ -2924,6 +2946,7 @@ elif modulo_principal == "Análisis de Inventario y Rotación":
             "Stock €/m²": stock_m2_total,
             "Ventas / Stock": ventas_stock_total,
             "Margen / Stock": margen_stock_total,
+            "Rotación Coste / Stock": rotacion_coste_stock_total,
         }])
 
         df_cmp_num = pd.concat(
@@ -2939,7 +2962,7 @@ elif modulo_principal == "Análisis de Inventario y Rotación":
                     lambda x: formato_moneda(x) if pd.notna(x) else ""
                 )
 
-        for col in ["Ventas / Stock", "Margen / Stock"]:
+        for col in ["Ventas / Stock", "Margen / Stock", "Rotación Coste / Stock"]:
             if col in df_cmp_disp.columns:
                 df_cmp_disp[col] = df_cmp_disp[col].apply(
                     lambda x: (
@@ -2993,11 +3016,16 @@ Margen bruto del periodo dividido entre el inventario medio.
 Mide cuánto margen bruto genera cada euro mantenido de media en inventario.  
 En general, **mayor = mejor eficiencia económica del stock**.
 
+**Rotación Coste / Stock**  
+Coste de ventas del periodo dividido entre el inventario medio.  
+Mide cuántas veces rota el inventario a coste durante el periodo seleccionado.  
+En general, **mayor = más rotación**, aunque un valor excesivamente alto puede indicar un stock demasiado ajustado.
+
 ### 🟢 Mejor / 🟠 Peor
 
 En cada columna, el **mejor valor válido entre las tiendas seleccionadas aparece sombreado en verde** y el **peor en naranja**. Los valores **en blanco, sin dato o iguales a cero** quedan fuera de la comparación. La fila **TOTAL** tampoco participa en el semáforo.
 
-En **Ventas Periodo, Margen Bruto, Ventas / Stock y Margen / Stock**, un valor mayor se considera mejor dentro de esta comparación. En las columnas de inventario y Stock €/m², el color identifica simplemente el **valor más alto y el más bajo**; no significa necesariamente que tener más o menos inventario sea bueno o malo por sí mismo.
+En **Ventas Periodo, Margen Bruto, Ventas / Stock, Margen / Stock y Rotación Coste / Stock**, un valor mayor se considera mejor dentro de esta comparación. En las columnas de inventario y Stock €/m², el color identifica simplemente el **valor más alto y el más bajo**; no significa necesariamente que tener más o menos inventario sea bueno o malo por sí mismo.
 
 **Cómo interpretar el TOTAL**  
 Los ratios de la fila TOTAL **no se suman ni se promedian directamente**. Se vuelven a calcular utilizando los importes totales del conjunto de tiendas seleccionadas, para que el resultado sea coherente.
@@ -3017,33 +3045,66 @@ Los ratios de la fila TOTAL **no se suman ni se promedian directamente**. Se vue
                 "Stock €/m²",
                 "Ventas / Stock",
                 "Margen / Stock",
+                "Rotación Coste / Stock",
             ],
             altura_fila=32,
             altura_cabecera=38,
             clave_preferencias="comparativa_inventario",
         )
 
-        # Gráfico: Margen / Stock por tienda
+        # Gráfico inferior con indicador seleccionable
+        indicadores_grafico_cmp = [
+            "Ventas / Stock",
+            "Margen / Stock",
+            "Rotación Coste / Stock",
+        ]
+
+        indicador_grafico_cmp = st.selectbox(
+            "Indicador del gráfico",
+            indicadores_grafico_cmp,
+            index=1,
+            key="indicador_grafico_comparativa",
+        )
+
         df_graf_cmp = df_cmp_num[
             (df_cmp_num["Tienda"].astype(str).str.strip().str.upper() != "TOTAL")
-            & pd.to_numeric(df_cmp_num["Margen / Stock"], errors="coerce").notna()
-            & pd.to_numeric(df_cmp_num["Margen / Stock"], errors="coerce").ne(0)
-        ][["Tienda", "Margen / Stock"]].copy()
+        ][["Tienda", indicador_grafico_cmp]].copy()
+
+        df_graf_cmp[indicador_grafico_cmp] = pd.to_numeric(
+            df_graf_cmp[indicador_grafico_cmp], errors="coerce"
+        )
+        df_graf_cmp = df_graf_cmp[
+            df_graf_cmp[indicador_grafico_cmp].notna()
+            & df_graf_cmp[indicador_grafico_cmp].ne(0)
+        ].copy()
 
         if not df_graf_cmp.empty:
-            df_graf_cmp["Margen / Stock"] = pd.to_numeric(
-                df_graf_cmp["Margen / Stock"], errors="coerce"
+            df_graf_cmp = df_graf_cmp.sort_values(
+                indicador_grafico_cmp, ascending=False
             )
-            df_graf_cmp = df_graf_cmp.sort_values("Margen / Stock", ascending=False)
 
-            st.markdown("#### Margen / Stock por tienda")
-            st.caption(
-                "Cuanto mayor sea el ratio, más margen bruto genera la tienda "
-                "por cada euro mantenido de media en inventario."
-            )
+            explicaciones_grafico_cmp = {
+                "Ventas / Stock": (
+                    "Ventas generadas durante el periodo por cada euro de inventario medio."
+                ),
+                "Margen / Stock": (
+                    "Margen bruto generado durante el periodo por cada euro de inventario medio."
+                ),
+                "Rotación Coste / Stock": (
+                    "Número de veces que el inventario rota a coste durante el periodo seleccionado."
+                ),
+            }
+
+            st.markdown(f"#### {indicador_grafico_cmp} por tienda")
+            st.caption(explicaciones_grafico_cmp[indicador_grafico_cmp])
             st.bar_chart(
-                df_graf_cmp.set_index("Tienda")["Margen / Stock"],
+                df_graf_cmp.set_index("Tienda")[indicador_grafico_cmp],
                 use_container_width=True,
+            )
+        else:
+            st.info(
+                f"No hay datos válidos para representar {indicador_grafico_cmp} "
+                "con la selección actual."
             )
 
         descargar_excel(
