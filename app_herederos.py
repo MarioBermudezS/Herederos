@@ -2465,19 +2465,29 @@ elif modulo_principal == "Análisis de Inventario y Rotación":
                 ).fillna(0).sum()
             )
 
-            calculo = calcular_cobertura_inventario(
-                df,
-                tienda,
-                ano,
-                mes,
-                inventario_final,
-            )
+            # GENERAL representa inventario común/almacén.
+            # En su fila solo se muestra el inventario final; no se calculan
+            # ventas medias, margen, venta a coste ni cobertura.
+            if str(tienda).strip().upper() == "GENERAL":
+                venta_media_12m = None
+                margen_acumulado = None
+                venta_media_coste = None
+                meses_stock = None
+                estado = ""
+            else:
+                calculo = calcular_cobertura_inventario(
+                    df,
+                    tienda,
+                    ano,
+                    mes,
+                    inventario_final,
+                )
 
-            venta_media_12m = calculo["venta_media_12m"]
-            margen_acumulado = calculo["margen_acumulado"]
-            venta_media_coste = calculo["venta_media_coste"]
-            meses_stock = calculo["meses_stock"]
-            estado = calculo["estado"]
+                venta_media_12m = calculo["venta_media_12m"]
+                margen_acumulado = calculo["margen_acumulado"]
+                venta_media_coste = calculo["venta_media_coste"]
+                meses_stock = calculo["meses_stock"]
+                estado = calculo["estado"]
 
             meses_stock_txt = ""
             if meses_stock is not None:
@@ -2544,27 +2554,34 @@ elif modulo_principal == "Análisis de Inventario y Rotación":
             float(f["Inventario Final"] or 0) for f in filas_mes
         )
 
-        ventas_validas = [
-            f for f in filas_mes if f["Venta Media 12M"] is not None
-        ]
-        coste_valido = [
-            f for f in filas_mes if f["Venta Media a Coste"] is not None
+        filas_operativas = [
+            f for f in filas_mes
+            if str(f["Tienda"]).strip().upper() != "GENERAL"
         ]
 
-        # El total de cobertura solo es válido si todas las tiendas seleccionadas
-        # tienen cálculo completo de 12 meses.
+        ventas_validas = [
+            f for f in filas_operativas if f["Venta Media 12M"] is not None
+        ]
+        coste_valido = [
+            f for f in filas_operativas if f["Venta Media a Coste"] is not None
+        ]
+
+        # GENERAL aporta inventario al total, pero no exige cálculo propio.
+        # La cobertura total provisional solo es válida si todas las tiendas
+        # operativas disponen de 12 meses completos.
         calculo_total_valido = (
-            len(ventas_validas) == len(filas_mes)
-            and len(coste_valido) == len(filas_mes)
+            bool(filas_operativas)
+            and len(ventas_validas) == len(filas_operativas)
+            and len(coste_valido) == len(filas_operativas)
         )
 
         venta_media_total = (
-            sum(float(f["Venta Media 12M"]) for f in filas_mes)
+            sum(float(f["Venta Media 12M"]) for f in filas_operativas)
             if calculo_total_valido
             else None
         )
         venta_coste_total = (
-            sum(float(f["Venta Media a Coste"]) for f in filas_mes)
+            sum(float(f["Venta Media a Coste"]) for f in filas_operativas)
             if calculo_total_valido
             else None
         )
