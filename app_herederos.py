@@ -1278,10 +1278,25 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         ],
     )
     
+    # Para el análisis R.B. solo se muestran tiendas que tengan algún
+    # valor de R.B. distinto de cero en los meses seleccionados.
+    tiendas_rb_disponibles = []
+    for tienda in departamentos_sin_general:
+        tiene_rb = False
+        for mes in meses_sel:
+            df_rb_chk = obtener_filtro_datos(df, ano, [mes], [tienda])
+            valor_rb_chk = calcular_rb_puro(df_rb_chk)
+            if abs(float(valor_rb_chk)) > 1e-12:
+                tiene_rb = True
+                break
+
+        if tiene_rb:
+            tiendas_rb_disponibles.append(tienda)
+
     tiendas_rb = st.sidebar.multiselect(
         "Selecciona tiendas",
-        departamentos_disponibles,
-        default=departamentos_sin_general,
+        tiendas_rb_disponibles,
+        default=tiendas_rb_disponibles,
     )
     
     if not tiendas_rb or not meses_sel:
