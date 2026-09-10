@@ -486,14 +486,23 @@ def render_aggrid_table(
     for i, col in enumerate(df_display.columns):
         if i == 0:
             ancho = calcular_ancho_columna(df_display, col, 120)
-            gb.configure_column(
-                col,
-                pinned="left",
-                width=ancho,
-                minWidth=120,
-                maxWidth=215,
-                cellStyle={"textAlign": "left", "fontWeight": "600"},
-            )
+            if len(df_display.columns) <= 6:
+                gb.configure_column(
+                    col,
+                    pinned="left",
+                    flex=1.35,
+                    minWidth=140,
+                    cellStyle={"textAlign": "left", "fontWeight": "600"},
+                )
+            else:
+                gb.configure_column(
+                    col,
+                    pinned="left",
+                    width=ancho,
+                    minWidth=120,
+                    maxWidth=215,
+                    cellStyle={"textAlign": "left", "fontWeight": "600"},
+                )
         else:
             ancho = calcular_ancho_columna(df_display, col, 74)
 
@@ -578,13 +587,21 @@ def render_aggrid_table(
             else:
                 cell_style = estilo_numerico_js
 
-            gb.configure_column(
-                col,
-                width=ancho,
-                minWidth=74,
-                maxWidth=205,
-                cellStyle=cell_style,
-            )
+            if len(df_display.columns) <= 6:
+                gb.configure_column(
+                    col,
+                    flex=1,
+                    minWidth=110,
+                    cellStyle=cell_style,
+                )
+            else:
+                gb.configure_column(
+                    col,
+                    width=ancho,
+                    minWidth=74,
+                    maxWidth=205,
+                    cellStyle=cell_style,
+                )
 
     gb.configure_grid_options(
         domLayout="normal",
@@ -601,9 +618,7 @@ def render_aggrid_table(
         df_display,
         gridOptions=gb.build(),
         update_mode=GridUpdateMode.NO_UPDATE,
-        # Con pocas columnas se reparte automáticamente el ancho de pantalla.
-        # Con muchas se conserva el ancho calculado para evitar cortar cifras.
-        fit_columns_on_grid_load=(len(df_display.columns) <= 6),
+        fit_columns_on_grid_load=False,
         allow_unsafe_jscode=True,
         theme="balham",
         height=altura_tabla,
@@ -709,14 +724,23 @@ def render_aggrid_rb_horizontal(
     for i, col in enumerate(df_display.columns):
         if col == "Mes":
             ancho = calcular_ancho_columna(df_display, col, 95)
-            gb.configure_column(
-                col,
-                pinned="left",
-                width=ancho,
-                minWidth=95,
-                maxWidth=140,
-                cellStyle={"textAlign": "left", "fontWeight": "600"},
-            )
+            if len(df_display.columns) <= 6:
+                gb.configure_column(
+                    col,
+                    pinned="left",
+                    flex=1.15,
+                    minWidth=110,
+                    cellStyle={"textAlign": "left", "fontWeight": "600"},
+                )
+            else:
+                gb.configure_column(
+                    col,
+                    pinned="left",
+                    width=ancho,
+                    minWidth=95,
+                    maxWidth=140,
+                    cellStyle={"textAlign": "left", "fontWeight": "600"},
+                )
             continue
 
         ancho = calcular_ancho_columna(df_display, col, 78)
@@ -803,13 +827,21 @@ def render_aggrid_rb_horizontal(
                 """
             )
 
-        gb.configure_column(
-            col,
-            width=ancho,
-            minWidth=78,
-            maxWidth=170,
-            cellStyle=estilo,
-        )
+        if len(df_display.columns) <= 6:
+            gb.configure_column(
+                col,
+                flex=1,
+                minWidth=110,
+                cellStyle=estilo,
+            )
+        else:
+            gb.configure_column(
+                col,
+                width=ancho,
+                minWidth=78,
+                maxWidth=170,
+                cellStyle=estilo,
+            )
 
     # Sombrear la fila ACUMULADO
     get_row_style = JsCode(
@@ -842,9 +874,7 @@ def render_aggrid_rb_horizontal(
         df_display,
         gridOptions=gb.build(),
         update_mode=GridUpdateMode.NO_UPDATE,
-        # Con pocas columnas se reparte automáticamente el ancho de pantalla.
-        # Con muchas se conserva el ancho calculado para evitar cortar cifras.
-        fit_columns_on_grid_load=(len(df_display.columns) <= 6),
+        fit_columns_on_grid_load=False,
         allow_unsafe_jscode=True,
         theme="balham",
         height=altura_tabla,
