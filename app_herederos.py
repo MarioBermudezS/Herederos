@@ -91,7 +91,7 @@ def formato_variacion_pp(valor: float) -> str:
     """Formatea variaciones en puntos porcentuales."""
     return f"{valor * 100:,.2f} pp".replace(",", "X").replace(".", ",").replace("X", ".")
 
-def calcular_ancho_columna(df: pd.DataFrame, col_name: str, min_width: int = 58) -> int:
+def calcular_ancho_columna(df: pd.DataFrame, col_name: str, min_width: int = 74) -> int:
     """
     Calcula el ancho óptimo de una columna basado en su contenido.
     
@@ -109,12 +109,14 @@ def calcular_ancho_columna(df: pd.DataFrame, col_name: str, min_width: int = 58)
     except:
         max_len = len(col_name)
     
-    # Autoajuste más estrecho: suficiente para leer sin dejar aire de más.
-    # Aproximamos 5,8 px por carácter y un padding mínimo.
-    ancho = max(int(max_len * 5.8 + 6), int(len(col_name) * 5.8 + 6), min_width)
+    # Autoajuste por contenido con una reserva suficiente para que no se corten
+    # cifras, signos, moneda, porcentajes ni separadores de miles.
+    # Con fuente de 13 px, ~6,7 px por carácter + padding ofrece un ajuste compacto
+    # pero legible incluso cuando se muestran varias columnas.
+    ancho = max(int(max_len * 6.7 + 16), int(len(col_name) * 6.7 + 16), min_width)
 
-    # Cap máximo para evitar columnas excesivamente anchas.
-    return min(ancho, 190)
+    # Evita columnas desproporcionadamente anchas.
+    return min(ancho, 220)
 
 @st.cache_data
 def load_data() -> pd.DataFrame:
@@ -337,36 +339,36 @@ def render_aggrid_table(df_display: pd.DataFrame, modo: str = "auto") -> None:
 
     for i, col in enumerate(df_display.columns):
         if i == 0:
-            ancho = calcular_ancho_columna(df_display, col, 108)
+            ancho = calcular_ancho_columna(df_display, col, 120)
             gb.configure_column(
                 col,
                 pinned="left",
                 width=ancho,
-                minWidth=108,
-                maxWidth=210,
+                minWidth=120,
+                maxWidth=230,
                 cellStyle={"textAlign": "left"},
             )
         else:
-            ancho = calcular_ancho_columna(df_display, col, 56)
+            ancho = calcular_ancho_columna(df_display, col, 74)
             gb.configure_column(
                 col,
                 width=ancho,
-                minWidth=56,
-                maxWidth=190,
+                minWidth=74,
+                maxWidth=220,
                 cellStyle=estilo_numerico_js,
             )
 
     gb.configure_grid_options(
         domLayout="normal",
         suppressRowClickSelection=True,
-        rowHeight=20,
-        headerHeight=24,
+        rowHeight=28,
+        headerHeight=30,
         getRowStyle=get_row_style,
         suppressHorizontalScroll=False,
     )
 
     # Altura calculada para mostrar todas las filas sin scroll vertical interno.
-    altura_tabla = 28 + (len(df_display) * 20)
+    altura_tabla = 34 + (len(df_display) * 28)
 
     AgGrid(
         df_display,
@@ -376,6 +378,20 @@ def render_aggrid_table(df_display: pd.DataFrame, modo: str = "auto") -> None:
         allow_unsafe_jscode=True,
         theme="balham",
         height=altura_tabla,
+        custom_css={
+            ".ag-cell": {
+                "font-size": "13px",
+                "line-height": "27px",
+                "padding-left": "5px",
+                "padding-right": "5px",
+            },
+            ".ag-header-cell": {
+                "font-size": "13px",
+                "font-weight": "600",
+                "padding-left": "5px",
+                "padding-right": "5px",
+            },
+        },
     )
 
 def descargar_excel(df: pd.DataFrame, nombre_hoja: str, nombre_archivo: str, etiqueta: str) -> None:
