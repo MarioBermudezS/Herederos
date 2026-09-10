@@ -140,44 +140,38 @@ def calcular_ancho_columna(df: pd.DataFrame, col_name: str, min_width: int = 74)
 
 def obtener_archivo_datos() -> str:
     """
-    Localiza el Excel de datos de forma segura.
-
-    Regla:
-      1) Si existe BaseDatos2026.xlsx y contiene BS/Tiendas, se usa SIEMPRE.
-      2) Si no existe, entre BaseDatos2026(n).xlsx se usa la versión numérica
-         más alta que contenga las hojas necesarias.
-
-    Así evitamos que una versión antigua como BaseDatos2026(1).xlsx tenga
-    prioridad sobre BaseDatos2026(8).xlsx.
+    Usa exclusivamente el archivo oficial BaseDatos2026.xlsx.
+    No busca ni acepta copias numeradas.
     """
-    principal = Path("BaseDatos2026.xlsx")
+    archivo = Path("BaseDatos2026.xlsx")
 
-    def hojas_validas(archivo: Path) -> bool:
-        try:
-            hojas = set(pd.ExcelFile(archivo).sheet_names)
-            return {"BS", "Tiendas"}.issubset(hojas)
-        except Exception:
-            return False
+    if not archivo.exists():
+        alternativa = Path("/mnt/data/BaseDatos2026.xlsx")
+        if alternativa.exists():
+            archivo = alternativa
 
-    if principal.exists() and hojas_validas(principal):
-        return str(principal)
+    if not archivo.exists():
+        raise FileNotFoundError(
+            "No se encuentra 'BaseDatos2026.xlsx'. "
+            "Debe estar junto a app_herederos.py con ese nombre exacto."
+        )
 
-    variantes = []
-    patron = re.compile(r"^BaseDatos2026\((\d+)\)\.xlsx$", re.IGNORECASE)
-    for p in Path(".").glob("BaseDatos2026*.xlsx"):
-        m = patron.match(p.name)
-        if m and p.exists() and hojas_validas(p):
-            variantes.append((int(m.group(1)), p))
+    return str(archivo)
 
-    if variantes:
-        variantes.sort(key=lambda x: x[0], reverse=True)
-        return str(variantes[0][1])
 
-    return "BaseDatos2026.xlsx"
+def firma_archivo_datos() -> tuple:
+    """
+    Firma del Excel para detectar cambios físicos en el archivo.
+    """
+    archivo = Path(obtener_archivo_datos())
+    stat = archivo.stat()
+    return (str(archivo.resolve()), stat.st_mtime_ns, stat.st_size)
+
 
 
 @st.cache_data
 def load_data() -> pd.DataFrame:
+    _ = firma_archivo_datos()
     """Carga datos del archivo Excel y normaliza campos de texto."""
     archivo_datos = obtener_archivo_datos()
     df = pd.read_excel(archivo_datos, sheet_name="BS")
@@ -202,6 +196,7 @@ def load_data() -> pd.DataFrame:
 
 @st.cache_data
 def load_tiendas_m2() -> Dict[str, float]:
+    _ = firma_archivo_datos()
     """Lee los metros cuadrados de la hoja Tiendas del mismo Excel."""
     try:
         archivo_datos = obtener_archivo_datos()
@@ -223,6 +218,7 @@ def load_tiendas_m2() -> Dict[str, float]:
 
 @st.cache_data
 def load_ajustes_existencias() -> pd.DataFrame:
+    _ = firma_archivo_datos()
     """
     Lee la hoja 'Ajustes' con columnas Año, Mes y Ajuste.
 
@@ -306,6 +302,7 @@ def obtener_ajuste_existencias(ano: int, meses: List[str]) -> float:
 
 @st.cache_data
 def load_margenes_totales_acumulados() -> pd.DataFrame:
+    _ = firma_archivo_datos()
     """
     Lee de forma estricta la hoja MargenesTotalesAcumulados del ERP.
 
@@ -444,6 +441,7 @@ def load_margenes_totales_acumulados() -> pd.DataFrame:
 
 @st.cache_data
 def load_inventario() -> pd.DataFrame:
+    _ = firma_archivo_datos()
     """
     Lee la hoja Inventario organizada por bloques de año.
 
