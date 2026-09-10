@@ -149,7 +149,28 @@ def obtener_archivo_datos() -> str:
         if p not in candidatos:
             candidatos.append(p)
 
-    # Primero buscar una versión completa con BS, Tiendas e Inventario.
+    # Primero buscar la versión más completa del libro.
+    # Para Inventario/Rotación necesitamos también los márgenes totales
+    # acumulados oficiales del ERP.
+    for archivo in candidatos:
+        if not archivo.exists():
+            continue
+        try:
+            hojas = pd.ExcelFile(archivo).sheet_names
+            if all(
+                h in hojas
+                for h in [
+                    "BS",
+                    "Tiendas",
+                    "Inventario",
+                    "MargenesTotalesAcumulados",
+                ]
+            ):
+                return str(archivo)
+        except Exception:
+            pass
+
+    # Segunda prioridad: versiones con BS, Tiendas e Inventario.
     for archivo in candidatos:
         if not archivo.exists():
             continue
@@ -2774,6 +2795,12 @@ elif modulo_principal == "Análisis de Inventario y Rotación":
             margen_total = float(
                 fila_margen_total["Margen Acumulado Total"].iloc[0]
             )
+
+            # Normalización defensiva:
+            # el ERP normalmente guarda 39,01 % como 0,3901.
+            # Si alguna versión lo trae como 39,01, se convierte a 0,3901.
+            if abs(margen_total) > 1.0:
+                margen_total = margen_total / 100.0
 
         venta_coste_total = None
         meses_stock_total = None
