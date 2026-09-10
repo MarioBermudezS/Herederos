@@ -331,7 +331,22 @@ def estado_columnas_js(clave: str, autoajustar_todas: bool = False) -> JsCode:
             if (autoajustarTodas) {{
                 try {{
                     if (params.api && params.api.autoSizeAllColumns) {{
-                        params.api.autoSizeAllColumns(false);
+                        params.api.autoSizeAllColumns(true);
+                        setTimeout(function() {{
+                            try {{
+                                const state = params.api.getColumnState();
+                                const compact = state.map(function(col) {{
+                                    if (col.width && col.width > 70) {{
+                                        col.width = Math.max(55, Math.round(col.width * 0.90));
+                                    }}
+                                    return col;
+                                }});
+                                params.api.applyColumnState({{
+                                    state: compact,
+                                    applyOrder: true
+                                }});
+                            }} catch (e) {{}}
+                        }}, 80);
                     }} else if (params.columnApi && params.columnApi.autoSizeAllColumns) {{
                         params.columnApi.autoSizeAllColumns(false);
                     }} else {{
