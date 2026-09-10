@@ -18,28 +18,28 @@ CSS_ESTILOS = """
     a[href*="github.com"] {display: none !important;}
     
     .block-container {
-        padding-top: 0.5rem !important;
-        padding-bottom: 0.5rem !important;
+        padding-top: 0.25rem !important;
+        padding-bottom: 0.25rem !important;
         padding-left: 1rem !important;
         padding-right: 1rem !important;
         max-width: 100% !important;
     }
-    h1 {font-size: 1.20rem !important; margin: 0 0 0.10rem 0 !important;}
-    h2 {font-size: 1.02rem !important; margin: 0.10rem 0 !important;}
-    h3 {font-size: 0.95rem !important; margin: 0.10rem 0 !important;}
+    h1 {font-size: 1.12rem !important; margin: 0 0 0.04rem 0 !important; line-height: 1.10 !important;}
+    h2 {font-size: 0.98rem !important; margin: 0.04rem 0 !important; line-height: 1.10 !important;}
+    h3 {font-size: 0.90rem !important; margin: 0.04rem 0 !important; line-height: 1.10 !important;}
 
     /* Interfaz más compacta para aprovechar toda la pantalla */
-    div[data-testid="stVerticalBlock"] {gap: 0.25rem !important;}
+    div[data-testid="stVerticalBlock"] {gap: 0.12rem !important;}
     div[data-testid="stSidebar"] .block-container {
-        padding-top: 0.45rem !important;
-        padding-bottom: 0.35rem !important;
+        padding-top: 0.25rem !important;
+        padding-bottom: 0.20rem !important;
     }
     div[data-testid="stSidebar"] .stRadio,
     div[data-testid="stSidebar"] .stSelectbox,
     div[data-testid="stSidebar"] .stMultiSelect {
-        margin-bottom: 0.10rem !important;
+        margin-bottom: 0.04rem !important;
     }
-    div[data-testid="stDownloadButton"] {margin-top: 0.15rem !important;}
+    div[data-testid="stDownloadButton"] {margin-top: 0.05rem !important;}
     </style>
 """
 
@@ -91,7 +91,7 @@ def formato_variacion_pp(valor: float) -> str:
     """Formatea variaciones en puntos porcentuales."""
     return f"{valor * 100:,.2f} pp".replace(",", "X").replace(".", ",").replace("X", ".")
 
-def calcular_ancho_columna(df: pd.DataFrame, col_name: str, min_width: int = 80) -> int:
+def calcular_ancho_columna(df: pd.DataFrame, col_name: str, min_width: int = 58) -> int:
     """
     Calcula el ancho óptimo de una columna basado en su contenido.
     
@@ -109,11 +109,12 @@ def calcular_ancho_columna(df: pd.DataFrame, col_name: str, min_width: int = 80)
     except:
         max_len = len(col_name)
     
-    # Calcular ancho: 8 píxeles por carácter + padding
-    ancho = max(max_len * 7 + 10, len(col_name) * 7 + 10, min_width)
-    
-    # Cap máximo para evitar columnas gigantes
-    return min(ancho, 220)
+    # Autoajuste más estrecho: suficiente para leer sin dejar aire de más.
+    # Aproximamos 5,8 px por carácter y un padding mínimo.
+    ancho = max(int(max_len * 5.8 + 6), int(len(col_name) * 5.8 + 6), min_width)
+
+    # Cap máximo para evitar columnas excesivamente anchas.
+    return min(ancho, 190)
 
 @st.cache_data
 def load_data() -> pd.DataFrame:
@@ -336,36 +337,36 @@ def render_aggrid_table(df_display: pd.DataFrame, modo: str = "auto") -> None:
 
     for i, col in enumerate(df_display.columns):
         if i == 0:
-            ancho = calcular_ancho_columna(df_display, col, 130)
+            ancho = calcular_ancho_columna(df_display, col, 108)
             gb.configure_column(
                 col,
                 pinned="left",
                 width=ancho,
-                minWidth=130,
-                maxWidth=240,
+                minWidth=108,
+                maxWidth=210,
                 cellStyle={"textAlign": "left"},
             )
         else:
-            ancho = calcular_ancho_columna(df_display, col, 70)
+            ancho = calcular_ancho_columna(df_display, col, 56)
             gb.configure_column(
                 col,
                 width=ancho,
-                minWidth=70,
-                maxWidth=220,
+                minWidth=56,
+                maxWidth=190,
                 cellStyle=estilo_numerico_js,
             )
 
     gb.configure_grid_options(
         domLayout="normal",
         suppressRowClickSelection=True,
-        rowHeight=24,
-        headerHeight=28,
+        rowHeight=20,
+        headerHeight=24,
         getRowStyle=get_row_style,
         suppressHorizontalScroll=False,
     )
 
     # Altura calculada para mostrar todas las filas sin scroll vertical interno.
-    altura_tabla = 34 + (len(df_display) * 24)
+    altura_tabla = 28 + (len(df_display) * 20)
 
     AgGrid(
         df_display,
