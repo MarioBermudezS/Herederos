@@ -160,7 +160,21 @@ def obtener_archivo_datos() -> str:
 
 
 
-def load_data() -> pd.DataFrame:
+
+
+def firma_archivo_datos() -> tuple:
+    """
+    Devuelve una firma del Excel para que la caché se invalide
+    automáticamente cuando cambia el archivo.
+    """
+    archivo = Path(obtener_archivo_datos())
+    stat = archivo.stat()
+    return (str(archivo.resolve()), stat.st_mtime_ns, stat.st_size)
+
+
+
+@st.cache_data(show_spinner=False)
+def load_data(_firma=None) -> pd.DataFrame:
     """Carga datos del archivo Excel y normaliza campos de texto."""
     archivo_datos = obtener_archivo_datos()
     df = pd.read_excel(archivo_datos, sheet_name="BS")
@@ -181,9 +195,13 @@ def load_data() -> pd.DataFrame:
     if "Año" in df.columns:
         df["Año"] = pd.to_numeric(df["Año"], errors="coerce")
 
+    if "Importe D" in df.columns:
+        df["Importe D"] = pd.to_numeric(df["Importe D"], errors="coerce").fillna(0.0)
+
     return df
 
-def load_tiendas_m2() -> Dict[str, float]:
+@st.cache_data(show_spinner=False)
+def load_tiendas_m2(_firma=None) -> Dict[str, float]:
     """Lee los metros cuadrados de la hoja Tiendas del mismo Excel."""
     try:
         archivo_datos = obtener_archivo_datos()
@@ -203,7 +221,8 @@ def load_tiendas_m2() -> Dict[str, float]:
 
 
 
-def load_ajustes_existencias() -> pd.DataFrame:
+@st.cache_data(show_spinner=False)
+def load_ajustes_existencias(_firma=None) -> pd.DataFrame:
     """
     Lee la hoja 'Ajustes' con columnas Año, Mes y Ajuste.
 
@@ -269,7 +288,7 @@ def load_ajustes_existencias() -> pd.DataFrame:
 
 
 def obtener_ajuste_existencias(ano: int, meses: List[str]) -> float:
-    ajustes = load_ajustes_existencias()
+    ajustes = load_ajustes_existencias(firma_archivo_datos())
     if ajustes.empty or not meses:
         return 0.0
 
@@ -285,7 +304,8 @@ def obtener_ajuste_existencias(ano: int, meses: List[str]) -> float:
     )
 
 
-def load_margenes_totales_acumulados() -> pd.DataFrame:
+@st.cache_data(show_spinner=False)
+def load_margenes_totales_acumulados(_firma=None) -> pd.DataFrame:
     """
     Lee de forma estricta la hoja MargenesTotalesAcumulados del ERP.
 
@@ -422,7 +442,8 @@ def load_margenes_totales_acumulados() -> pd.DataFrame:
     return df_margenes
 
 
-def load_inventario() -> pd.DataFrame:
+@st.cache_data(show_spinner=False)
+def load_inventario(_firma=None) -> pd.DataFrame:
     """
     Lee la hoja Inventario organizada por bloques de año.
 
@@ -725,7 +746,7 @@ def _periodo_anterior(ano: int, mes: str) -> Tuple[int, str]:
 
 def obtener_inventario_total_mes(ano: int, mes: str) -> float:
     """Inventario total empresa del cierre del mes, incluido General."""
-    inv = load_inventario()
+    inv = load_inventario(firma_archivo_datos())
     if inv.empty:
         return 0.0
     f = inv[(inv["Año"] == int(ano)) & (inv["Mes"] == mes)]
@@ -745,6 +766,55 @@ def obtener_variacion_existencias_mes(ano: int, mes: str) -> float:
     if inv_ini == 0.0 or inv_fin == 0.0:
         return 0.0
     return inv_ini - inv_fin
+
+
+
+def calcular_capitulo_financiero(df_periodo: pd.DataFrame) -> tuple[float, float]:
+    """
+    Calcula los capítulos financieros por naturaleza contable de la cuenta.
+
+    Gastos financieros:
+      - 626 Servicios bancarios y similares
+      - cuentas 66x (p. ej. 662, 669)
+
+    Ingresos financieros:
+      - cuentas 76x (p. ej. 760, 763, 769)
+
+    Se conserva SIEMPRE el signo original de 'Importe D'.
+    """
+    if df_periodo is None or df_periodo.empty:
+        return 0.0, 0.0
+
+    tmp = df_periodo.copy()
+
+    if "Cuenta" not in tmp.columns or "Importe D" not in tmp.columns:
+        return 0.0, 0.0
+
+    tmp["Cuenta_txt"] = (
+        tmp["Cuenta"]
+        .astype(str)
+        .str.replace(".0", "", regex=False)
+        .str.strip()
+    )
+    tmp["Importe_num"] = pd.to_numeric(
+        tmp["Importe D"], errors="coerce"
+    ).fillna(0.0)
+
+    es_gasto_financiero = (
+        tmp["Cuenta_txt"].eq("626")
+        | tmp["Cuenta_txt"].str.startswith("66", na=False)
+    )
+
+    es_ingreso_financiero = tmp["Cuenta_txt"].str.startswith("76", na=False)
+
+    gastos_financieros = float(
+        tmp.loc[es_gasto_financiero, "Importe_num"].sum()
+    )
+    ingresos_financieros = float(
+        tmp.loc[es_ingreso_financiero, "Importe_num"].sum()
+    )
+
+    return gastos_financieros, ingresos_financieros
 
 
 def calcular_resultados_total_empresa(
@@ -813,8 +883,9 @@ def calcular_resultados_total_empresa(
     # Del mismo modo, Resultados Extraordinarios se toma tal cual del Excel:
     #   positivo -> resta al BAI
     #   negativo -> al restarlo, aumenta el BAI (es ingreso neto extraordinario)
-    gastos_financieros = get_v("Gastos Financieros")
-    ingresos_financieros = get_v("Ingresos Financieros")
+    gastos_financieros, ingresos_financieros = calcular_capitulo_financiero(
+        df_periodo
+    )
     rdo_financiero = gastos_financieros + ingresos_financieros
 
     resultados_extraordinarios = get_v("Resultados Extraordinarios")
@@ -922,8 +993,9 @@ def calcular_resultados(
     # CONSERVAR el signo contable que viene del Excel:
     # - los ingresos financieros negativos reducen el saldo financiero y mejoran BAI;
     # - un resultado extraordinario negativo, al restarse, aumenta el BAI.
-    gastos_financieros = get_v("Gastos Financieros")
-    ingresos_financieros = get_v("Ingresos Financieros")
+    gastos_financieros, ingresos_financieros = calcular_capitulo_financiero(
+        df_filtrado
+    )
     rdo_financiero = gastos_financieros + ingresos_financieros
 
     resultados_extraordinarios = get_v("Resultados Extraordinarios")
@@ -1874,7 +1946,7 @@ def descargar_excel(df: pd.DataFrame, nombre_hoja: str, nombre_archivo: str, eti
 # =====================================================================
 
 try:
-    df = load_data()
+    df = load_data(firma_archivo_datos())
 except Exception as e:
     st.error(f"Error al leer el archivo Excel ('BaseDatos2026.xlsx'): {e}")
     st.stop()
@@ -2257,7 +2329,7 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
         "Base del KPI",
         ["% sobre Ventas", "€/m² de tienda", "Comparar ambos"],
     )
-    m2_por_tienda = load_tiendas_m2()
+    m2_por_tienda = load_tiendas_m2(firma_archivo_datos())
 
     modo_analisis = st.sidebar.radio(
         "Tipo de Análisis KPI",
@@ -2881,8 +2953,8 @@ elif modulo_principal == "Análisis de Inventario y Rotación":
 
     # Los m² se cargan también en este módulo para poder calcular
     # Stock €/m² en la comparativa de tiendas.
-    m2_por_tienda = load_tiendas_m2()
-    df_inventario = load_inventario()
+    m2_por_tienda = load_tiendas_m2(firma_archivo_datos())
+    df_inventario = load_inventario(firma_archivo_datos())
 
     if df_inventario.empty:
         st.error(
@@ -3462,7 +3534,7 @@ Los ratios de la fila TOTAL **no se suman ni se promedian directamente**. Se vue
 
         # Para el TOTAL, el margen acumulado oficial del ERP manda.
         # Se toma el margen acumulado correspondiente al último mes seleccionado.
-        df_margenes_erp = load_margenes_totales_acumulados()
+        df_margenes_erp = load_margenes_totales_acumulados(firma_archivo_datos())
         meses_validos = [m for m in MESES_ORDEN if m in meses_sel]
         ultimo_mes = meses_validos[-1] if meses_validos else None
         margen_pct_total = None
@@ -3807,7 +3879,7 @@ Cuanto mayor sea el número del ranking, menor es el margen generado por euro de
     # El inventario TOTAL incluye GENERAL. La venta media TOTAL se calcula
     # directamente con las ventas de toda la empresa de los últimos 12 meses.
     # El margen acumulado TOTAL se toma exclusivamente del ERP.
-    df_margenes_totales = load_margenes_totales_acumulados()
+    df_margenes_totales = load_margenes_totales_acumulados(firma_archivo_datos())
 
     for mes in meses_sel:
         filas_mes = [f for f in filas_excel if f["Mes"] == mes]
