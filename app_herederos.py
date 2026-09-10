@@ -3,6 +3,7 @@ import pandas as pd
 import streamlit as st
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
 from typing import Dict, List, Tuple
+from pathlib import Path
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
