@@ -1248,6 +1248,11 @@ if "Departamento" in df_periodo_departamentos.columns:
         if tiene_datos:
             departamentos_disponibles.append(departamento)
 
+departamentos_sin_general = [
+    d for d in departamentos_disponibles
+    if str(d).strip().upper() != "GENERAL"
+]
+
 # =====================================================================
 # MÓDULO 1: ANÁLISIS ESPECÍFICO DE R.B. (MARGEN BRUTO)
 # =====================================================================
@@ -1276,7 +1281,7 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
     tiendas_rb = st.sidebar.multiselect(
         "Selecciona tiendas",
         departamentos_disponibles,
-        default=departamentos_disponibles,
+        default=departamentos_sin_general,
     )
     
     if not tiendas_rb or not meses_sel:
@@ -1945,9 +1950,9 @@ else:
         tiendas = st.sidebar.multiselect(
             "Selecciona tiendas a comparar",
             departamentos_disponibles,
-            default=departamentos_disponibles[:2]
-            if len(departamentos_disponibles) >= 2
-            else departamentos_disponibles,
+            default=departamentos_sin_general[:2]
+            if len(departamentos_sin_general) >= 2
+            else departamentos_sin_general,
         )
     else:
         tipo_consulta = st.sidebar.radio(
@@ -1960,7 +1965,7 @@ else:
             tiendas = st.sidebar.multiselect(
                 "Selecciona tiendas",
                 departamentos_disponibles,
-                default=departamentos_disponibles,
+                default=departamentos_sin_general,
             )
     
     if not tiendas or not meses_sel:
