@@ -5,21 +5,16 @@ from typing import Dict, List
 
 st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
 
-CSS_ESTILOS = """
-    <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    .viewerBadge_container {display: none !important;}
-    .block-container {padding-top: 0.5rem !important; padding-bottom: 0.5rem !important; padding-left: 1rem !important; padding-right: 1rem !important; max-width: 100% !important;}
-    h1 {font-size: 1.2rem !important; margin-bottom: 0.1rem !important;}
-    </style>
-"""
+CSS_ESTILOS = """<style>#MainMenu{visibility:hidden;}footer{visibility:hidden;}.viewerBadge_container{display:none!important;}.block-container{padding:0.3rem 0.5rem!important;max-width:100%!important;}h1{font-size:0.95rem!important;margin:0!important;}h3{font-size:0.8rem!important;margin:0!important;}.stDataFrame{font-size:11px!important;}table{font-size:11px!important;line-height:1.2!important;}th,td{padding:2px 4px!important;}</style>"""
 
 MESES_ORDEN = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
 CONCEPTOS_KPI = ["Ventas", "Coste Ventas", "MARGEN BRUTO", "R. B.", "Otros Ingresos", "Ingresos Operativos", "Gastos Personal", "Alquileres", "Reparaciones", "Seguros", "Suministros", "Otros Servicios", "TOTAL GASTOS OPERATIVOS", "Amortizaciones", "GASTOS ESTRUCTURA", "B.A.I.I.", "Gastos Financieros", "Ingresos Financieros", "RDO. FINANCIERO", "Resultados Extraordinarios", "B.A.I."]
 FILAS_NEGRITA_RESULTADOS = ["MARGEN BRUTO", "Ingresos Operativos", "TOTAL GASTOS OPERATIVOS", "GASTOS ESTRUCTURA", "B.A.I.I.", "RDO. FINANCIERO", "B.A.I."]
 FILAS_NEGRITA_RB = ["TOTAL GRUPO"]
 FILAS_NEGRITA_KPI = ["MARGEN BRUTO", "Ingresos Operativos", "TOTAL GASTOS OPERATIVOS", "GASTOS ESTRUCTURA", "B.A.I.I.", "B.A.I."]
+
+GASTOS = {"Coste Ventas", "Gastos Personal", "Alquileres", "Reparaciones", "Seguros", "Suministros", "Otros Servicios", "TOTAL GASTOS OPERATIVOS", "Amortizaciones", "GASTOS ESTRUCTURA", "Gastos Financieros"}
+INGRESOS = {"Ventas", "MARGEN BRUTO", "R. B.", "Otros Ingresos", "Ingresos Operativos", "Ingresos Financieros", "B.A.I.I.", "RDO. FINANCIERO", "B.A.I."}
 
 st.markdown(CSS_ESTILOS, unsafe_allow_html=True)
 st.title("Control de Resultados - Herederos")
@@ -108,10 +103,18 @@ def render_dataframe_table(df_display: pd.DataFrame, df_numerico: pd.DataFrame =
                 return ['font-weight: bold; background-color: #f0f0f0;'] * len(row)
         return [''] * len(row)
     styled_df = df_display.style.apply(estilo_fila, axis=1)
+    
     if con_colores and df_numerico is not None:
         for col in df_numerico.columns[1:]:
-            styled_df = styled_df.highlight_max(subset=[col], color='#90EE90', axis=0)
-            styled_df = styled_df.highlight_min(subset=[col], color='#FFB6C6', axis=0)
+            for row_idx in range(len(df_display)):
+                concepto = df_display.iloc[row_idx, 0]
+                valores = pd.to_numeric(df_numerico[col].iloc[1:], errors='coerce')
+                if valores.notna().any():
+                    if concepto in GASTOS and row_idx == valores.idxmin():
+                        styled_df = styled_df.applymap(lambda x: 'background-color: #90EE90', subset=pd.IndexSlice[row_idx, col])
+                    elif concepto in INGRESOS and row_idx == valores.idxmax():
+                        styled_df = styled_df.applymap(lambda x: 'background-color: #90EE90', subset=pd.IndexSlice[row_idx, col])
+    
     st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
 def descargar_excel(df: pd.DataFrame, nombre_hoja: str, nombre_archivo: str, etiqueta: str) -> None:
@@ -126,8 +129,8 @@ except Exception as e:
     st.error(f"Error: {e}")
     st.stop()
 
-st.sidebar.header("Parámetros del Informe")
-modulo_principal = st.sidebar.radio("Módulo de Análisis", ["Cuenta de Resultados Completa", "Análisis Específico de R.B. (Margen Bruto)", "Informe KPI (% sobre Ventas)"])
+st.sidebar.header("Parámetros")
+modulo_principal = st.sidebar.radio("Módulo", ["Cuenta de Resultados", "Análisis R.B.", "KPI"])
 
 anos_disponibles = [2024, 2025, 2026]
 if "Año" in df.columns:
@@ -136,359 +139,289 @@ if "Año" in df.columns:
 if not anos_disponibles:
     anos_disponibles = [2026]
 
-ano = st.sidebar.selectbox("Año principal", anos_disponibles)
+ano = st.sidebar.selectbox("Año", anos_disponibles)
 
 meses_excel = df["Mes"].dropna().unique().tolist() if "Mes" in df.columns else ["Enero"]
 meses_disponibles = [m for m in MESES_ORDEN if m in meses_excel]
 if not meses_disponibles:
     meses_disponibles = meses_excel
 
-meses_sel = st.sidebar.multiselect("Selecciona mes(es)", meses_disponibles, default=meses_disponibles[:1])
+meses_sel = st.sidebar.multiselect("Mes(es)", meses_disponibles, default=meses_disponibles[:1])
 
 df_ano = df[df["Año"] == ano] if "Año" in df.columns else df
 departamentos_disponibles = sorted(df_ano["Departamento"].dropna().unique()) if "Departamento" in df_ano.columns else []
 
-if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
+if modulo_principal == "Análisis R.B.":
     st.sidebar.markdown("---")
-    st.sidebar.subheader("Opciones de Análisis R.B.")
-    tipo_analisis_rb = st.sidebar.radio("Tipo de Vista R.B.", ["Evolución Mensual por Tienda", "Vista Acumulada por Tienda", "Comparativa Interanual (Año vs Año Anterior)"])
-    tiendas_rb = st.sidebar.multiselect("Selecciona tiendas", departamentos_disponibles, default=departamentos_disponibles)
+    tipo_analisis_rb = st.sidebar.radio("Vista", ["Mensual", "Acumulada", "Interanual"])
+    tiendas_rb = st.sidebar.multiselect("Tiendas", departamentos_disponibles, default=departamentos_disponibles)
     if not tiendas_rb or not meses_sel:
-        st.warning("Selecciona al menos una tienda y un mes.")
+        st.warning("Selecciona tiendas y meses")
         st.stop()
     
-    if tipo_analisis_rb == "Evolución Mensual por Tienda":
-        st.subheader(f"Análisis R.B. - Evolución Mensual por Tienda ({ano})")
-        columnas_tabla = ["Tienda"] + meses_sel + (["Promedio Acumulado"] if len(meses_sel) > 1 else [])
+    if tipo_analisis_rb == "Mensual":
+        st.subheader(f"R.B. Mensual {ano}")
+        columnas_tabla = ["Tienda"] + meses_sel + (["Prom."] if len(meses_sel) > 1 else [])
         filas_display = []
-        filas_nums = []
         for tienda in tiendas_rb:
             fila_d = [tienda]
-            fila_n = [tienda]
             for mes in meses_sel:
-                df_filtrado = obtener_filtro_datos(df, ano, [mes], [tienda])
-                val_rb = calcular_rb_puro(df_filtrado)
-                fila_n.append(val_rb)
+                df_f = obtener_filtro_datos(df, ano, [mes], [tienda])
+                val_rb = calcular_rb_puro(df_f)
                 fila_d.append(formato_porcentaje(val_rb))
             if len(meses_sel) > 1:
-                df_acum = obtener_filtro_datos(df, ano, meses_sel, [tienda])
-                val_acum = calcular_rb_puro(df_acum)
-                fila_n.append(val_acum)
-                fila_d.append(formato_porcentaje(val_acum))
+                df_f = obtener_filtro_datos(df, ano, meses_sel, [tienda])
+                fila_d.append(formato_porcentaje(calcular_rb_puro(df_f)))
             filas_display.append(fila_d)
-            filas_nums.append(fila_n)
         if len(tiendas_rb) > 1:
-            fila_d_tot = ["TOTAL GRUPO"]
-            fila_n_tot = ["TOTAL GRUPO"]
+            fila_d = ["TOTAL"]
             for mes in meses_sel:
-                df_filtrado = obtener_filtro_datos(df, ano, [mes], tiendas_rb)
-                val_m = calcular_rb_puro(df_filtrado)
-                fila_n_tot.append(val_m)
-                fila_d_tot.append(formato_porcentaje(val_m))
+                df_f = obtener_filtro_datos(df, ano, [mes], tiendas_rb)
+                fila_d.append(formato_porcentaje(calcular_rb_puro(df_f)))
             if len(meses_sel) > 1:
-                df_acum = obtener_filtro_datos(df, ano, meses_sel, tiendas_rb)
-                val_tot_ac = calcular_rb_puro(df_acum)
-                fila_n_tot.append(val_tot_ac)
-                fila_d_tot.append(formato_porcentaje(val_tot_ac))
-            filas_display.append(fila_d_tot)
-            filas_nums.append(fila_n_tot)
-        df_res_d = pd.DataFrame(filas_display, columns=columnas_tabla)
-        df_res_n = pd.DataFrame(filas_nums, columns=columnas_tabla)
-        render_dataframe_table(df_res_d, df_numerico=df_res_n, filas_negrita=FILAS_NEGRITA_RB)
-        descargar_excel(df_res_n, "Analisis_RB_Mensual", f"Analisis_RB_Mensual_{ano}.xlsx", "Descargar Análisis R.B. en Excel")
+                df_f = obtener_filtro_datos(df, ano, meses_sel, tiendas_rb)
+                fila_d.append(formato_porcentaje(calcular_rb_puro(df_f)))
+            filas_display.append(fila_d)
+        df_res = pd.DataFrame(filas_display, columns=columnas_tabla)
+        render_dataframe_table(df_res, filas_negrita=FILAS_NEGRITA_RB)
     
-    elif tipo_analisis_rb == "Vista Acumulada por Tienda":
-        nombre_m_str = ", ".join(meses_sel) if len(meses_sel) <= 3 else f"{len(meses_sel)} meses acumulados"
-        st.subheader(f"Análisis R.B. - Vista Acumulada ({nombre_m_str} {ano})")
-        filas_acum_d = []
-        filas_acum_n = []
+    elif tipo_analisis_rb == "Acumulada":
+        nombre_m = ", ".join(meses_sel) if len(meses_sel) <= 3 else f"{len(meses_sel)} meses"
+        st.subheader(f"R.B. Acumulada {nombre_m} {ano}")
+        filas = []
         for tienda in tiendas_rb:
-            df_filtrado = obtener_filtro_datos(df, ano, meses_sel, [tienda])
-            val_rb = calcular_rb_puro(df_filtrado)
-            filas_acum_d.append([tienda, formato_porcentaje(val_rb)])
-            filas_acum_n.append([tienda, val_rb])
+            df_f = obtener_filtro_datos(df, ano, meses_sel, [tienda])
+            filas.append([tienda, formato_porcentaje(calcular_rb_puro(df_f))])
         if len(tiendas_rb) > 1:
-            df_filtrado = obtener_filtro_datos(df, ano, meses_sel, tiendas_rb)
-            val_tot = calcular_rb_puro(df_filtrado)
-            filas_acum_d.append(["TOTAL GRUPO", formato_porcentaje(val_tot)])
-            filas_acum_n.append(["TOTAL GRUPO", val_tot])
-        df_acum_d = pd.DataFrame(filas_acum_d, columns=["Tienda", f"Acumulado {nombre_m_str}"])
-        df_acum_n = pd.DataFrame(filas_acum_n, columns=["Tienda", f"Acumulado {nombre_m_str}"])
-        render_dataframe_table(df_acum_d, df_numerico=df_acum_n, filas_negrita=FILAS_NEGRITA_RB)
-        descargar_excel(df_acum_n, "Analisis_RB_Acumulado", f"Analisis_RB_Acumulado_{ano}.xlsx", "Descargar Acumulado R.B. en Excel")
+            df_f = obtener_filtro_datos(df, ano, meses_sel, tiendas_rb)
+            filas.append(["TOTAL", formato_porcentaje(calcular_rb_puro(df_f))])
+        df_res = pd.DataFrame(filas, columns=["Tienda", "R.B."])
+        render_dataframe_table(df_res, filas_negrita=FILAS_NEGRITA_RB)
     
     else:
         ano_ant = ano - 1
-        nombre_m_str = ", ".join(meses_sel) if len(meses_sel) <= 3 else f"{len(meses_sel)} meses"
-        st.subheader(f"Comparativa Interanual R.B. ({nombre_m_str}): {ano} vs {ano_ant}")
-        columnas_interanual_rb = ["Tienda", f"R.B. {ano}", f"R.B. {ano_ant}", "Var. pp"]
-        filas_inter_d = []
-        filas_inter_n = []
+        nombre_m = ", ".join(meses_sel) if len(meses_sel) <= 3 else f"{len(meses_sel)} m"
+        st.subheader(f"R.B. {ano} vs {ano_ant} ({nombre_m})")
+        filas = []
         for tienda in tiendas_rb:
-            df_act = obtener_filtro_datos(df, ano, meses_sel, [tienda])
-            df_ant = obtener_filtro_datos(df, ano_ant, meses_sel, [tienda])
-            val_act = calcular_rb_puro(df_act)
-            val_ant = calcular_rb_puro(df_ant)
-            var_pp = val_act - val_ant
-            filas_inter_n.append([tienda, val_act, val_ant, var_pp])
-            filas_inter_d.append([tienda, formato_porcentaje(val_act), formato_porcentaje(val_ant), formato_variacion_pp(var_pp)])
+            df_a = obtener_filtro_datos(df, ano, meses_sel, [tienda])
+            df_p = obtener_filtro_datos(df, ano_ant, meses_sel, [tienda])
+            va = calcular_rb_puro(df_a)
+            vp = calcular_rb_puro(df_p)
+            filas.append([tienda, formato_porcentaje(va), formato_porcentaje(vp), formato_variacion_pp(va - vp)])
         if len(tiendas_rb) > 1:
-            df_act = obtener_filtro_datos(df, ano, meses_sel, tiendas_rb)
-            df_ant = obtener_filtro_datos(df, ano_ant, meses_sel, tiendas_rb)
-            val_tot_act = calcular_rb_puro(df_act)
-            val_tot_ant = calcular_rb_puro(df_ant)
-            var_tot_pp = val_tot_act - val_tot_ant
-            filas_inter_n.append(["TOTAL GRUPO", val_tot_act, val_tot_ant, var_tot_pp])
-            filas_inter_d.append(["TOTAL GRUPO", formato_porcentaje(val_tot_act), formato_porcentaje(val_tot_ant), formato_variacion_pp(var_tot_pp)])
-        df_inter_d = pd.DataFrame(filas_inter_d, columns=columnas_interanual_rb)
-        df_inter_n = pd.DataFrame(filas_inter_n, columns=columnas_interanual_rb)
-        render_dataframe_table(df_inter_d, df_numerico=df_inter_n, filas_negrita=FILAS_NEGRITA_RB)
-        descargar_excel(df_inter_n, "Interanual_RB", f"Comparativa_Interanual_RB_{ano}.xlsx", "Descargar Comparativa R.B. en Excel")
+            df_a = obtener_filtro_datos(df, ano, meses_sel, tiendas_rb)
+            df_p = obtener_filtro_datos(df, ano_ant, meses_sel, tiendas_rb)
+            va = calcular_rb_puro(df_a)
+            vp = calcular_rb_puro(df_p)
+            filas.append(["TOTAL", formato_porcentaje(va), formato_porcentaje(vp), formato_variacion_pp(va - vp)])
+        df_res = pd.DataFrame(filas, columns=["Tienda", f"{ano}", f"{ano_ant}", "Var"])
+        render_dataframe_table(df_res, filas_negrita=FILAS_NEGRITA_RB)
 
-elif modulo_principal == "Informe KPI (% sobre Ventas)":
-    modo_analisis = st.sidebar.radio("Tipo de Análisis KPI", ["Evolución Mensual / Tienda", "Comparativa Multi-Tienda (Totales)", "Comparativa Interanual (Año vs Año Anterior)"])
-    if modo_analisis == "Comparativa Multi-Tienda (Totales)":
-        tiendas = st.sidebar.multiselect("Selecciona tiendas a comparar", departamentos_disponibles, default=departamentos_disponibles[:2] if len(departamentos_disponibles) >= 2 else departamentos_disponibles)
+elif modulo_principal == "KPI":
+    modo = st.sidebar.radio("Análisis", ["Mensual", "Multi-Tienda", "Interanual"])
+    if modo == "Multi-Tienda":
+        tiendas = st.sidebar.multiselect("Tiendas", departamentos_disponibles, default=departamentos_disponibles[:2] if len(departamentos_disponibles) >= 2 else departamentos_disponibles)
     else:
-        tipo_consulta = st.sidebar.radio("Tipo de consulta", ["Una tienda", "Conjunto de tiendas"])
-        if tipo_consulta == "Una tienda":
-            tienda_sel = st.sidebar.selectbox("Selecciona tienda", departamentos_disponibles)
-            tiendas = [tienda_sel] if tienda_sel else []
+        tipo = st.sidebar.radio("Tipo", ["Una tienda", "Varias tiendas"])
+        if tipo == "Una tienda":
+            tienda_s = st.sidebar.selectbox("Tienda", departamentos_disponibles)
+            tiendas = [tienda_s] if tienda_s else []
         else:
-            tiendas = st.sidebar.multiselect("Selecciona tiendas", departamentos_disponibles, default=departamentos_disponibles)
+            tiendas = st.sidebar.multiselect("Tiendas", departamentos_disponibles, default=departamentos_disponibles)
     if not tiendas or not meses_sel:
-        st.warning("Selecciona al menos una tienda y un mes.")
+        st.warning("Selecciona tiendas y meses")
         st.stop()
-    nombre_meses_str = ", ".join(meses_sel) if len(meses_sel) <= 3 else f"{len(meses_sel)} meses"
-    if modo_analisis == "Comparativa Interanual (Año vs Año Anterior)":
-        st.subheader(f"Informe KPI (% sobre Ventas) - Interanual: {nombre_meses_str} ({ano} vs {ano - 1})")
-        ano_anterior = ano - 1
-        datos_fuente = {}
-        df_ant = obtener_filtro_datos(df, ano_anterior, meses_sel, tiendas)
-        df_act = obtener_filtro_datos(df, ano, meses_sel, tiendas)
-        datos_fuente["Ant"] = calcular_resultados(df_ant)
-        datos_fuente["Act"] = calcular_resultados(df_act)
-        columnas_eje = [f"Total {ano}", f"Total {ano_anterior}", "Var. pp"]
-        columnas_tabla = ["Resultados"] + columnas_eje
-        filas_tabla_display = []
-        filas_valores_numericos = []
-        for concepto in CONCEPTOS_KPI:
-            fila_disp = [concepto]
-            fila_num = [concepto]
-            res_ant = datos_fuente["Ant"]
-            res_act = datos_fuente["Act"]
-            v_ventas_act = res_act.get("Ventas", 1.0)
-            v_ventas_ant = res_ant.get("Ventas", 1.0)
-            val_act_abs = res_act.get(concepto, 0.0)
-            val_ant_abs = res_ant.get(concepto, 0.0)
-            if concepto == "R. B.":
-                kpi_act = val_act_abs
-                kpi_ant = val_ant_abs
+    
+    nombre_m = ", ".join(meses_sel) if len(meses_sel) <= 3 else f"{len(meses_sel)} m"
+    
+    if modo == "Interanual":
+        st.subheader(f"KPI {ano} vs {ano-1} ({nombre_m})")
+        df_a = obtener_filtro_datos(df, ano, meses_sel, tiendas)
+        df_p = obtener_filtro_datos(df, ano-1, meses_sel, tiendas)
+        ra = calcular_resultados(df_a)
+        rp = calcular_resultados(df_p)
+        va_v = ra.get("Ventas", 1.0)
+        vp_v = rp.get("Ventas", 1.0)
+        filas_d = []
+        filas_n = []
+        for c in CONCEPTOS_KPI:
+            val_a = ra.get(c, 0.0)
+            val_p = rp.get(c, 0.0)
+            if c == "R. B.":
+                kpi_a, kpi_p = val_a, val_p
             else:
-                kpi_act = (val_act_abs / v_ventas_act) if v_ventas_act != 0 else 0.0
-                kpi_ant = (val_ant_abs / v_ventas_ant) if v_ventas_ant != 0 else 0.0
-            var_pp = kpi_act - kpi_ant
-            fila_num.extend([kpi_act, kpi_ant, var_pp])
-            fila_disp.append(formato_porcentaje(kpi_act))
-            fila_disp.append(formato_porcentaje(kpi_ant))
-            fila_disp.append(formato_variacion_pp(var_pp))
-            filas_tabla_display.append(fila_disp)
-            filas_valores_numericos.append(fila_num)
-        df_kpi_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
-        df_kpi_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
-        render_dataframe_table(df_kpi_display, df_numerico=df_kpi_numericos, filas_negrita=FILAS_NEGRITA_KPI, con_colores=True)
-        descargar_excel(df_kpi_numericos, "Informe_KPI", f"Informe_KPI_Ventas_{ano}.xlsx", "Descargar Informe KPI en Excel")
-    elif modo_analisis == "Comparativa Multi-Tienda (Totales)":
-        st.subheader(f"Informe KPI (% sobre Ventas) - Multi-Tienda ({nombre_meses_str} {ano})")
-        datos_fuente = {}
-        for tienda in tiendas:
-            df_filtrado = obtener_filtro_datos(df, ano, meses_sel, [tienda])
-            datos_fuente[tienda] = calcular_resultados(df_filtrado)
-        df_filtrado = obtener_filtro_datos(df, ano, meses_sel, tiendas)
-        datos_fuente["Total"] = calcular_resultados(df_filtrado)
-        columnas_eje = tiendas + ["Total"]
-        columnas_tabla = ["Resultados"] + columnas_eje
-        filas_tabla_display = []
-        filas_valores_numericos = []
-        for concepto in CONCEPTOS_KPI:
-            fila_disp = [concepto]
-            fila_num = [concepto]
-            for item in columnas_eje:
-                res_item = datos_fuente[item]
-                v_ventas_item = res_item.get("Ventas", 1.0)
-                val_abs = res_item.get(concepto, 0.0)
-                if concepto == "R. B.":
-                    kpi_val = val_abs
-                else:
-                    kpi_val = (val_abs / v_ventas_item) if v_ventas_item != 0 else 0.0
-                fila_num.append(kpi_val)
-                fila_disp.append(formato_porcentaje(kpi_val))
-            filas_tabla_display.append(fila_disp)
-            filas_valores_numericos.append(fila_num)
-        df_kpi_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
-        df_kpi_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
-        render_dataframe_table(df_kpi_display, df_numerico=df_kpi_numericos, filas_negrita=FILAS_NEGRITA_KPI, con_colores=True)
-        descargar_excel(df_kpi_numericos, "Informe_KPI", f"Informe_KPI_Ventas_{ano}.xlsx", "Descargar Informe KPI en Excel")
+                kpi_a = (val_a / va_v) if va_v != 0 else 0.0
+                kpi_p = (val_p / vp_v) if vp_v != 0 else 0.0
+            var = kpi_a - kpi_p
+            filas_n.append([c, kpi_a, kpi_p, var])
+            filas_d.append([c, formato_porcentaje(kpi_a), formato_porcentaje(kpi_p), formato_variacion_pp(var)])
+        df_d = pd.DataFrame(filas_d, columns=["Concepto", f"{ano}", f"{ano-1}", "Var"])
+        df_n = pd.DataFrame(filas_n, columns=["Concepto", f"{ano}", f"{ano-1}", "Var"])
+        render_dataframe_table(df_d, df_numerico=df_n, filas_negrita=FILAS_NEGRITA_KPI, con_colores=True)
+    
+    elif modo == "Multi-Tienda":
+        st.subheader(f"KPI Multi-Tienda ({nombre_m} {ano})")
+        rf = {}
+        for t in tiendas:
+            df_f = obtener_filtro_datos(df, ano, meses_sel, [t])
+            rf[t] = calcular_resultados(df_f)
+        df_f = obtener_filtro_datos(df, ano, meses_sel, tiendas)
+        rf["Total"] = calcular_resultados(df_f)
+        cols_e = tiendas + ["Total"]
+        filas_d = []
+        filas_n = []
+        for c in CONCEPTOS_KPI:
+            fila_d = [c]
+            fila_n = [c]
+            for t in cols_e:
+                v_v = rf[t].get("Ventas", 1.0)
+                val = rf[t].get(c, 0.0)
+                kpi = val if c == "R. B." else (val / v_v if v_v != 0 else 0.0)
+                fila_n.append(kpi)
+                fila_d.append(formato_porcentaje(kpi))
+            filas_d.append(fila_d)
+            filas_n.append(fila_n)
+        df_d = pd.DataFrame(filas_d, columns=["Concepto"] + cols_e)
+        df_n = pd.DataFrame(filas_n, columns=["Concepto"] + cols_e)
+        render_dataframe_table(df_d, df_numerico=df_n, filas_negrita=FILAS_NEGRITA_KPI, con_colores=True)
+    
     else:
-        st.subheader(f"Informe KPI (% sobre Ventas) - ({nombre_meses_str} {ano})")
-        datos_fuente = {}
+        st.subheader(f"KPI ({nombre_m} {ano})")
+        rf = {}
         if len(tiendas) > 1:
-            for tienda in tiendas:
-                df_filtrado = obtener_filtro_datos(df, ano, meses_sel, [tienda])
-                datos_fuente[tienda] = calcular_resultados(df_filtrado)
-            df_filtrado = obtener_filtro_datos(df, ano, meses_sel, tiendas)
-            datos_fuente["Total"] = calcular_resultados(df_filtrado)
-            columnas_eje = tiendas + ["Total"]
+            for t in tiendas:
+                df_f = obtener_filtro_datos(df, ano, meses_sel, [t])
+                rf[t] = calcular_resultados(df_f)
+            df_f = obtener_filtro_datos(df, ano, meses_sel, tiendas)
+            rf["Total"] = calcular_resultados(df_f)
+            cols_e = tiendas + ["Total"]
         else:
-            for mes in meses_sel:
-                df_filtrado = obtener_filtro_datos(df, ano, [mes], tiendas)
-                datos_fuente[mes] = calcular_resultados(df_filtrado)
+            for m in meses_sel:
+                df_f = obtener_filtro_datos(df, ano, [m], tiendas)
+                rf[m] = calcular_resultados(df_f)
             if len(meses_sel) > 1:
-                df_filtrado = obtener_filtro_datos(df, ano, meses_sel, tiendas)
-                datos_fuente["Total"] = calcular_resultados(df_filtrado)
-                columnas_eje = meses_sel + ["Total"]
+                df_f = obtener_filtro_datos(df, ano, meses_sel, tiendas)
+                rf["Total"] = calcular_resultados(df_f)
+                cols_e = meses_sel + ["Total"]
             else:
-                columnas_eje = meses_sel
-        columnas_tabla = ["Resultados"] + columnas_eje
-        filas_tabla_display = []
-        filas_valores_numericos = []
-        for concepto in CONCEPTOS_KPI:
-            fila_disp = [concepto]
-            fila_num = [concepto]
-            for item in columnas_eje:
-                res_item = datos_fuente[item]
-                v_ventas_item = res_item.get("Ventas", 1.0)
-                val_abs = res_item.get(concepto, 0.0)
-                if concepto == "R. B.":
-                    kpi_val = val_abs
-                else:
-                    kpi_val = (val_abs / v_ventas_item) if v_ventas_item != 0 else 0.0
-                fila_num.append(kpi_val)
-                fila_disp.append(formato_porcentaje(kpi_val))
-            filas_tabla_display.append(fila_disp)
-            filas_valores_numericos.append(fila_num)
-        df_kpi_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
-        df_kpi_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
-        render_dataframe_table(df_kpi_display, df_numerico=df_kpi_numericos, filas_negrita=FILAS_NEGRITA_KPI, con_colores=True)
-        descargar_excel(df_kpi_numericos, "Informe_KPI", f"Informe_KPI_Ventas_{ano}.xlsx", "Descargar Informe KPI en Excel")
+                cols_e = meses_sel
+        filas_d = []
+        filas_n = []
+        for c in CONCEPTOS_KPI:
+            fila_d = [c]
+            fila_n = [c]
+            for t in cols_e:
+                v_v = rf[t].get("Ventas", 1.0)
+                val = rf[t].get(c, 0.0)
+                kpi = val if c == "R. B." else (val / v_v if v_v != 0 else 0.0)
+                fila_n.append(kpi)
+                fila_d.append(formato_porcentaje(kpi))
+            filas_d.append(fila_d)
+            filas_n.append(fila_n)
+        df_d = pd.DataFrame(filas_d, columns=["Concepto"] + cols_e)
+        df_n = pd.DataFrame(filas_n, columns=["Concepto"] + cols_e)
+        render_dataframe_table(df_d, df_numerico=df_n, filas_negrita=FILAS_NEGRITA_KPI, con_colores=True)
 
 else:
-    modo_analisis = st.sidebar.radio("Tipo de Análisis", ["Evolución Mensual / Tienda", "Comparativa Multi-Tienda (Totales)", "Comparativa Interanual (Año vs Año Anterior)"])
-    if modo_analisis == "Comparativa Multi-Tienda (Totales)":
-        tiendas = st.sidebar.multiselect("Selecciona tiendas a comparar", departamentos_disponibles, default=departamentos_disponibles[:2] if len(departamentos_disponibles) >= 2 else departamentos_disponibles)
+    modo = st.sidebar.radio("Análisis", ["Mensual", "Multi-Tienda", "Interanual"])
+    if modo == "Multi-Tienda":
+        tiendas = st.sidebar.multiselect("Tiendas", departamentos_disponibles, default=departamentos_disponibles[:2] if len(departamentos_disponibles) >= 2 else departamentos_disponibles)
     else:
-        tipo_consulta = st.sidebar.radio("Tipo de consulta", ["Una tienda", "Conjunto de tiendas"])
-        if tipo_consulta == "Una tienda":
-            tienda_sel = st.sidebar.selectbox("Selecciona tienda", departamentos_disponibles)
-            tiendas = [tienda_sel] if tienda_sel else []
+        tipo = st.sidebar.radio("Tipo", ["Una tienda", "Varias tiendas"])
+        if tipo == "Una tienda":
+            tienda_s = st.sidebar.selectbox("Tienda", departamentos_disponibles)
+            tiendas = [tienda_s] if tienda_s else []
         else:
-            tiendas = st.sidebar.multiselect("Selecciona tiendas", departamentos_disponibles, default=departamentos_disponibles)
+            tiendas = st.sidebar.multiselect("Tiendas", departamentos_disponibles, default=departamentos_disponibles)
     if not tiendas or not meses_sel:
-        st.warning("Selecciona al menos una tienda y un mes.")
+        st.warning("Selecciona tiendas y meses")
         st.stop()
-    nombre_meses_str = ", ".join(meses_sel) if len(meses_sel) <= 3 else f"{len(meses_sel)} meses"
-    if modo_analisis == "Comparativa Interanual (Año vs Año Anterior)":
-        st.subheader(f"Comparativa Interanual: {nombre_meses_str} ({ano} vs {ano - 1})")
-        ano_anterior = ano - 1
-        datos_fuente = {}
-        df_ant = obtener_filtro_datos(df, ano_anterior, meses_sel, tiendas)
-        df_act = obtener_filtro_datos(df, ano, meses_sel, tiendas)
-        datos_fuente["Ant"] = calcular_resultados(df_ant)
-        datos_fuente["Act"] = calcular_resultados(df_act)
-        columnas_eje = [f"Total {ano}", f"Total {ano_anterior}", "Var. €", "Var. %"]
-        columnas_tabla = ["Resultados"] + columnas_eje
-        filas_tabla_display = []
-        filas_valores_numericos = []
-        for concepto in CONCEPTOS_KPI:
-            fila_disp = [concepto]
-            fila_num = [concepto]
-            val_ant = datos_fuente["Ant"].get(concepto, 0.0)
-            val_act = datos_fuente["Act"].get(concepto, 0.0)
-            if concepto == "R. B.":
-                var_diff = val_act - val_ant
-                fila_num.extend([val_act, val_ant, var_diff, 0.0])
-                fila_disp.append(formato_porcentaje(val_act))
-                fila_disp.append(formato_porcentaje(val_ant))
-                fila_disp.append(formato_variacion_pp(var_diff))
-                fila_disp.append("-")
+    
+    nombre_m = ", ".join(meses_sel) if len(meses_sel) <= 3 else f"{len(meses_sel)} m"
+    
+    if modo == "Interanual":
+        st.subheader(f"Resultados {ano} vs {ano-1} ({nombre_m})")
+        df_a = obtener_filtro_datos(df, ano, meses_sel, tiendas)
+        df_p = obtener_filtro_datos(df, ano-1, meses_sel, tiendas)
+        ra = calcular_resultados(df_a)
+        rp = calcular_resultados(df_p)
+        filas_d = []
+        filas_n = []
+        for c in CONCEPTOS_KPI:
+            val_a = ra.get(c, 0.0)
+            val_p = rp.get(c, 0.0)
+            if c == "R. B.":
+                var_e = val_a - val_p
+                filas_n.append([c, val_a, val_p, var_e, 0.0])
+                filas_d.append([c, formato_porcentaje(val_a), formato_porcentaje(val_p), formato_variacion_pp(var_e), "-"])
             else:
-                var_eur = val_act - val_ant
-                var_pct = (var_eur / abs(val_ant) * 100) if val_ant != 0 else 0.0
-                fila_num.extend([val_act, val_ant, var_eur, var_pct])
-                fila_disp.append(formato_moneda(val_act))
-                fila_disp.append(formato_moneda(val_ant))
-                fila_disp.append(formato_moneda(var_eur))
-                fila_disp.append(formato_porcentaje(var_pct / 100) if var_pct != 0 else "0,00%")
-            filas_tabla_display.append(fila_disp)
-            filas_valores_numericos.append(fila_num)
-        df_resultado_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
-        df_valores_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
-        render_dataframe_table(df_resultado_display, df_numerico=df_valores_numericos, filas_negrita=FILAS_NEGRITA_RESULTADOS)
-        descargar_excel(df_valores_numericos, "Informe", f"Informe_Resultados_{ano}.xlsx", "Descargar Informe en Excel")
-    elif modo_analisis == "Comparativa Multi-Tienda (Totales)":
-        st.subheader(f"Comparativa Multi-Tienda ({nombre_meses_str} {ano})")
-        datos_fuente = {}
-        for tienda in tiendas:
-            df_filtrado = obtener_filtro_datos(df, ano, meses_sel, [tienda])
-            datos_fuente[tienda] = calcular_resultados(df_filtrado)
-        df_filtrado = obtener_filtro_datos(df, ano, meses_sel, tiendas)
-        datos_fuente["Total"] = calcular_resultados(df_filtrado)
-        columnas_eje = tiendas + ["Total"]
-        columnas_tabla = ["Resultados"] + columnas_eje
-        filas_tabla_display = []
-        filas_valores_numericos = []
-        for concepto in CONCEPTOS_KPI:
-            fila_disp = [concepto]
-            fila_num = [concepto]
-            for item in columnas_eje:
-                val = datos_fuente[item].get(concepto, 0.0)
-                fila_num.append(val)
-                if concepto == "R. B.":
-                    fila_disp.append(formato_porcentaje(val))
-                else:
-                    fila_disp.append(formato_moneda(val))
-            filas_tabla_display.append(fila_disp)
-            filas_valores_numericos.append(fila_num)
-        df_resultado_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
-        df_valores_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
-        render_dataframe_table(df_resultado_display, df_numerico=df_valores_numericos, filas_negrita=FILAS_NEGRITA_RESULTADOS)
-        descargar_excel(df_valores_numericos, "Informe", f"Informe_Resultados_{ano}.xlsx", "Descargar Informe en Excel")
+                var_e = val_a - val_p
+                var_pc = (var_e / abs(val_p) * 100) if val_p != 0 else 0.0
+                filas_n.append([c, val_a, val_p, var_e, var_pc])
+                filas_d.append([c, formato_moneda(val_a), formato_moneda(val_p), formato_moneda(var_e), formato_porcentaje(var_pc / 100) if var_pc != 0 else "0,00%"])
+        df_d = pd.DataFrame(filas_d, columns=["Concepto", f"{ano}", f"{ano-1}", "Var€", "Var%"])
+        df_n = pd.DataFrame(filas_n, columns=["Concepto", f"{ano}", f"{ano-1}", "Var€", "Var%"])
+        render_dataframe_table(df_d, df_numerico=df_n, filas_negrita=FILAS_NEGRITA_RESULTADOS)
+        descargar_excel(df_n, "Resultados", f"Resultados_{ano}.xlsx", "📥 Descargar")
+    
+    elif modo == "Multi-Tienda":
+        st.subheader(f"Resultados ({nombre_m} {ano})")
+        rf = {}
+        for t in tiendas:
+            df_f = obtener_filtro_datos(df, ano, meses_sel, [t])
+            rf[t] = calcular_resultados(df_f)
+        df_f = obtener_filtro_datos(df, ano, meses_sel, tiendas)
+        rf["Total"] = calcular_resultados(df_f)
+        cols_e = tiendas + ["Total"]
+        filas_d = []
+        filas_n = []
+        for c in CONCEPTOS_KPI:
+            fila_d = [c]
+            fila_n = [c]
+            for t in cols_e:
+                val = rf[t].get(c, 0.0)
+                fila_n.append(val)
+                fila_d.append(formato_porcentaje(val) if c == "R. B." else formato_moneda(val))
+            filas_d.append(fila_d)
+            filas_n.append(fila_n)
+        df_d = pd.DataFrame(filas_d, columns=["Concepto"] + cols_e)
+        df_n = pd.DataFrame(filas_n, columns=["Concepto"] + cols_e)
+        render_dataframe_table(df_d, df_numerico=df_n, filas_negrita=FILAS_NEGRITA_RESULTADOS)
+        descargar_excel(df_n, "Resultados", f"Resultados_{ano}.xlsx", "📥 Descargar")
+    
     else:
-        st.subheader(f"Informe ({nombre_meses_str} {ano})")
-        datos_fuente = {}
+        st.subheader(f"Resultados ({nombre_m} {ano})")
+        rf = {}
         if len(tiendas) > 1:
-            for tienda in tiendas:
-                df_filtrado = obtener_filtro_datos(df, ano, meses_sel, [tienda])
-                datos_fuente[tienda] = calcular_resultados(df_filtrado)
-            df_filtrado = obtener_filtro_datos(df, ano, meses_sel, tiendas)
-            datos_fuente["Total"] = calcular_resultados(df_filtrado)
-            columnas_eje = tiendas + ["Total"]
+            for t in tiendas:
+                df_f = obtener_filtro_datos(df, ano, meses_sel, [t])
+                rf[t] = calcular_resultados(df_f)
+            df_f = obtener_filtro_datos(df, ano, meses_sel, tiendas)
+            rf["Total"] = calcular_resultados(df_f)
+            cols_e = tiendas + ["Total"]
         else:
-            for mes in meses_sel:
-                df_filtrado = obtener_filtro_datos(df, ano, [mes], tiendas)
-                datos_fuente[mes] = calcular_resultados(df_filtrado)
+            for m in meses_sel:
+                df_f = obtener_filtro_datos(df, ano, [m], tiendas)
+                rf[m] = calcular_resultados(df_f)
             if len(meses_sel) > 1:
-                df_filtrado = obtener_filtro_datos(df, ano, meses_sel, tiendas)
-                datos_fuente["Total"] = calcular_resultados(df_filtrado)
-                columnas_eje = meses_sel + ["Total"]
+                df_f = obtener_filtro_datos(df, ano, meses_sel, tiendas)
+                rf["Total"] = calcular_resultados(df_f)
+                cols_e = meses_sel + ["Total"]
             else:
-                columnas_eje = meses_sel
-        columnas_tabla = ["Resultados"] + columnas_eje
-        filas_tabla_display = []
-        filas_valores_numericos = []
-        for concepto in CONCEPTOS_KPI:
-            fila_disp = [concepto]
-            fila_num = [concepto]
-            for item in columnas_eje:
-                val = datos_fuente[item].get(concepto, 0.0)
-                fila_num.append(val)
-                if concepto == "R. B.":
-                    fila_disp.append(formato_porcentaje(val))
-                else:
-                    fila_disp.append(formato_moneda(val))
-            filas_tabla_display.append(fila_disp)
-            filas_valores_numericos.append(fila_num)
-        df_resultado_display = pd.DataFrame(filas_tabla_display, columns=columnas_tabla)
-        df_valores_numericos = pd.DataFrame(filas_valores_numericos, columns=columnas_tabla)
-        render_dataframe_table(df_resultado_display, df_numerico=df_valores_numericos, filas_negrita=FILAS_NEGRITA_RESULTADOS)
-        descargar_excel(df_valores_numericos, "Informe", f"Informe_Resultados_{ano}.xlsx", "Descargar Informe en Excel")
+                cols_e = meses_sel
+        filas_d = []
+        filas_n = []
+        for c in CONCEPTOS_KPI:
+            fila_d = [c]
+            fila_n = [c]
+            for t in cols_e:
+                val = rf[t].get(c, 0.0)
+                fila_n.append(val)
+                fila_d.append(formato_porcentaje(val) if c == "R. B." else formato_moneda(val))
+            filas_d.append(fila_d)
+            filas_n.append(fila_n)
+        df_d = pd.DataFrame(filas_d, columns=["Concepto"] + cols_e)
+        df_n = pd.DataFrame(filas_n, columns=["Concepto"] + cols_e)
+        render_dataframe_table(df_d, df_numerico=df_n, filas_negrita=FILAS_NEGRITA_RESULTADOS)
+        descargar_excel(df_n, "Resultados", f"Resultados_{ano}.xlsx", "📥 Descargar")
