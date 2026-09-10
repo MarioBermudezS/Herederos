@@ -115,13 +115,13 @@ def calcular_ancho_columna(df: pd.DataFrame, col_name: str, min_width: int = 74)
     # pero legible incluso cuando se muestran varias columnas.
     # Ajuste algo más compacto sin cortar cifras, porcentajes ni símbolos.
     ancho = max(
-        int(max_len * 5.8 + 12),
-        int(len(col_name) * 5.8 + 12),
+        int(max_len * 5.35 + 10),
+        int(len(col_name) * 5.35 + 10),
         min_width
     )
 
-    # Evita columnas desproporcionadamente anchas.
-    return min(ancho, 195)
+    # Ajuste compacto para aprovechar mejor el ancho de pantalla.
+    return min(ancho, 180)
 
 @st.cache_data
 def load_data() -> pd.DataFrame:
@@ -490,8 +490,8 @@ def render_aggrid_table(
                 col,
                 pinned="left",
                 width=ancho,
-                minWidth=105,
-                maxWidth=200,
+                minWidth=95,
+                maxWidth=185,
                 cellStyle={"textAlign": "left", "fontWeight": "600"},
             )
         else:
@@ -581,8 +581,8 @@ def render_aggrid_table(
             gb.configure_column(
                 col,
                 width=ancho,
-                minWidth=68,
-                maxWidth=190,
+                minWidth=62,
+                maxWidth=175,
                 cellStyle=cell_style,
             )
 
@@ -609,15 +609,15 @@ def render_aggrid_table(
             ".ag-cell": {
                 "font-size": "13px",
                 "line-height": "27px",
-                "padding-left": "5px",
-                "padding-right": "5px",
+                "padding-left": "3px",
+                "padding-right": "3px",
                 "border-right": "1px solid #c9ced3",
             },
             ".ag-header-cell": {
                 "font-size": "13px",
                 "font-weight": "600",
-                "padding-left": "5px",
-                "padding-right": "5px",
+                "padding-left": "3px",
+                "padding-right": "3px",
                 "border-right": "1px solid #b8bec5",
             },
             ".ag-header-cell-label": {
@@ -711,8 +711,8 @@ def render_aggrid_rb_horizontal(
                 col,
                 pinned="left",
                 width=ancho,
-                minWidth=88,
-                maxWidth=130,
+                minWidth=80,
+                maxWidth=120,
                 cellStyle={"textAlign": "left", "fontWeight": "600"},
             )
             continue
@@ -804,8 +804,8 @@ def render_aggrid_rb_horizontal(
         gb.configure_column(
             col,
             width=ancho,
-            minWidth=70,
-            maxWidth=160,
+            minWidth=64,
+            maxWidth=148,
             cellStyle=estilo,
         )
 
@@ -848,15 +848,15 @@ def render_aggrid_rb_horizontal(
             ".ag-cell": {
                 "font-size": "13px",
                 "line-height": "31px",
-                "padding-left": "5px",
-                "padding-right": "5px",
+                "padding-left": "3px",
+                "padding-right": "3px",
                 "border-right": "1px solid #c9ced3",
             },
             ".ag-header-cell": {
                 "font-size": "13px",
                 "font-weight": "600",
-                "padding-left": "5px",
-                "padding-right": "5px",
+                "padding-left": "3px",
+                "padding-right": "3px",
                 "border-right": "1px solid #b8bec5",
             },
         },
