@@ -115,13 +115,13 @@ def calcular_ancho_columna(df: pd.DataFrame, col_name: str, min_width: int = 74)
     # pero legible incluso cuando se muestran varias columnas.
     # Ajuste algo más compacto sin cortar cifras, porcentajes ni símbolos.
     ancho = max(
-        int(max_len * 5.1 + 8),
-        int(len(col_name) * 5.1 + 8),
+        int(max_len * 4.9 + 7),
+        int(len(col_name) * 4.9 + 7),
         min_width
     )
 
     # Ajuste compacto para aprovechar mejor el ancho de pantalla.
-    return min(ancho, 172)
+    return min(ancho, 166)
 
 @st.cache_data
 def load_data() -> pd.DataFrame:
@@ -281,6 +281,50 @@ def calcular_resultados(df_filtrado: pd.DataFrame) -> Dict[str, float]:
 # FUNCIONES DE RENDERIZACIÓN
 # =====================================================================
 
+def _safe_storage_key(clave: str) -> str:
+    return "herederos_grid_" + "".join(
+        c if c.isalnum() or c in "_-" else "_" for c in str(clave)
+    )
+
+
+def estado_columnas_js(clave: str) -> JsCode:
+    """Guarda y restaura ancho y orden de columnas en el navegador."""
+    storage_key = _safe_storage_key(clave)
+    return JsCode(
+        f"""
+        function(params) {{
+            const key = {storage_key!r};
+
+            function guardar() {{
+                try {{
+                    window.localStorage.setItem(
+                        key,
+                        JSON.stringify(params.api.getColumnState())
+                    );
+                }} catch (e) {{}}
+            }}
+
+            try {{
+                const saved = window.localStorage.getItem(key);
+                if (saved) {{
+                    params.api.applyColumnState({{
+                        state: JSON.parse(saved),
+                        applyOrder: true
+                    }});
+                }}
+            }} catch (e) {{}}
+
+            params.api.addEventListener('columnResized', function(e) {{
+                if (e.finished) guardar();
+            }});
+            params.api.addEventListener('columnMoved', function(e) {{
+                if (e.finished) guardar();
+            }});
+        }}
+        """
+    )
+
+
 def render_aggrid_table(
     df_display: pd.DataFrame,
     modo: str = "auto",
@@ -290,6 +334,7 @@ def render_aggrid_table(
     resaltar_rb_tiendas: bool = False,
     altura_fila: int = 32,
     altura_cabecera: int = 34,
+    clave_preferencias: str = "tabla_general",
 ) -> None:
     """
     Renderiza la tabla completa.
@@ -450,6 +495,14 @@ def render_aggrid_table(
             rb_rojos[col] = {tienda for tienda, valor in valores.items() if valor == minimo}
 
     gb = GridOptionsBuilder.from_dataframe(df_display)
+    # El usuario puede redimensionar arrastrando el borde de la cabecera
+    # y reordenar columnas arrastrando la propia cabecera.
+    gb.configure_default_column(
+        resizable=True,
+        sortable=False,
+        filter=False,
+        suppressMovable=False,
+    )
     gb.configure_default_column(
         resizable=True,
         filterable=False,
@@ -488,10 +541,9 @@ def render_aggrid_table(
             ancho = calcular_ancho_columna(df_display, col, 120)
             gb.configure_column(
                 col,
-                pinned="left",
                 width=ancho,
-                minWidth=90,
-                maxWidth=178,
+                minWidth=86,
+                maxWidth=172,
                 cellStyle={"textAlign": "left", "fontWeight": "600"},
             )
         else:
@@ -581,8 +633,8 @@ def render_aggrid_table(
             gb.configure_column(
                 col,
                 width=ancho,
-                minWidth=58,
-                maxWidth=168,
+                minWidth=55,
+                maxWidth=162,
                 cellStyle=cell_style,
             )
 
@@ -596,6 +648,10 @@ def render_aggrid_table(
     )
 
     altura_tabla = altura_cabecera + (len(df_display) * altura_fila)
+
+    gb.configure_grid_options(
+        onGridReady=estado_columnas_js(clave_preferencias)
+    )
 
     AgGrid(
         df_display,
@@ -639,6 +695,7 @@ def render_aggrid_rb_horizontal(
     tiendas: List[str],
     altura_fila: int = 36,
     altura_cabecera: int = 38,
+    clave_preferencias: str = "rb_meses_filas",
 ) -> None:
     """
     Renderiza el análisis R.B. con meses en filas y tiendas en columnas.
@@ -694,6 +751,14 @@ def render_aggrid_rb_horizontal(
                 rojos_por_columna[tienda].add(etiqueta)
 
     gb = GridOptionsBuilder.from_dataframe(df_display)
+    # El usuario puede redimensionar arrastrando el borde de la cabecera
+    # y reordenar columnas arrastrando la propia cabecera.
+    gb.configure_default_column(
+        resizable=True,
+        sortable=False,
+        filter=False,
+        suppressMovable=False,
+    )
     gb.configure_default_column(
         resizable=True,
         filterable=False,
@@ -709,10 +774,9 @@ def render_aggrid_rb_horizontal(
             ancho = calcular_ancho_columna(df_display, col, 95)
             gb.configure_column(
                 col,
-                pinned="left",
                 width=ancho,
-                minWidth=76,
-                maxWidth=116,
+                minWidth=72,
+                maxWidth=112,
                 cellStyle={"textAlign": "left", "fontWeight": "600"},
             )
             continue
@@ -804,8 +868,8 @@ def render_aggrid_rb_horizontal(
         gb.configure_column(
             col,
             width=ancho,
-            minWidth=60,
-            maxWidth=142,
+            minWidth=57,
+            maxWidth=138,
             cellStyle=estilo,
         )
 
@@ -835,6 +899,10 @@ def render_aggrid_rb_horizontal(
     )
 
     altura_tabla = altura_cabecera + (len(df_display) * altura_fila)
+
+    gb.configure_grid_options(
+        onGridReady=estado_columnas_js(clave_preferencias)
+    )
 
     AgGrid(
         df_display,
@@ -1025,6 +1093,7 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
                 tiendas_rb,
                 altura_fila=36,
                 altura_cabecera=38,
+                clave_preferencias="rb_meses_filas",
             )
 
         else:
@@ -1087,6 +1156,7 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
                 columnas_comparar=tiendas_rb if len(tiendas_rb) > 1 else None,
                 altura_fila=36,
                 altura_cabecera=38,
+        clave_preferencias="rb_tiendas_filas",
             )
 
         descargar_excel(
@@ -1133,6 +1203,7 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
             columnas_comparar=tiendas_rb if len(tiendas_rb) > 1 else None,
             altura_fila=36,
             altura_cabecera=38,
+        clave_preferencias="rb_tiendas_filas",
         )
         descargar_excel(df_acum_n, "Analisis_RB_Acumulado", f"Analisis_RB_Acumulado_{ano}.xlsx",
                        "Descargar Acumulado R.B. en Excel")
@@ -1196,6 +1267,7 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
             columnas_comparar=tiendas_rb if len(tiendas_rb) > 1 else None,
             altura_fila=36,
             altura_cabecera=38,
+        clave_preferencias="rb_tiendas_filas",
         )
         descargar_excel(df_inter_n, "Interanual_RB", f"Comparativa_Interanual_RB_{ano}.xlsx",
                        "Descargar Comparativa R.B. en Excel")
@@ -1301,6 +1373,7 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
             df_numericos=df_kpi_numericos,
             resaltar_kpi_tiendas=len(tiendas) > 1,
             columnas_comparar=tiendas if len(tiendas) > 1 else None,
+        clave_preferencias="informe_kpi",
         )
         descargar_excel(df_kpi_numericos, "Informe_KPI", f"Informe_KPI_Ventas_{ano}.xlsx",
                        "Descargar Informe KPI en Excel")
@@ -1351,6 +1424,7 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
             df_numericos=df_kpi_numericos,
             resaltar_kpi_tiendas=len(tiendas) > 1,
             columnas_comparar=tiendas if len(tiendas) > 1 else None,
+        clave_preferencias="informe_kpi",
         )
         descargar_excel(df_kpi_numericos, "Informe_KPI", f"Informe_KPI_Ventas_{ano}.xlsx",
                        "Descargar Informe KPI en Excel")
@@ -1415,6 +1489,7 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
             df_numericos=df_kpi_numericos,
             resaltar_kpi_tiendas=len(tiendas) > 1,
             columnas_comparar=tiendas if len(tiendas) > 1 else None,
+        clave_preferencias="informe_kpi",
         )
         descargar_excel(df_kpi_numericos, "Informe_KPI", f"Informe_KPI_Ventas_{ano}.xlsx",
                        "Descargar Informe KPI en Excel")
