@@ -232,14 +232,11 @@ def render_dataframe_table(df_display: pd.DataFrame, filas_negrita: List[str] = 
     
     # Agregar colores si es KPI
     if con_colores:
-        # Colorear solo columnas numéricas (no la primera)
         for col in df_display.columns[1:]:
             try:
-                # Convertir a números para comparar
                 valores_numericos = pd.to_numeric(df_display[col], errors='coerce')
                 
                 if valores_numericos.notna().any():
-                    # Verde para máximos, rojo para mínimos
                     styled_df = styled_df.highlight_max(subset=[col], color='#90EE90', axis=0)
                     styled_df = styled_df.highlight_min(subset=[col], color='#FFB6C6', axis=0)
             except:
@@ -248,8 +245,7 @@ def render_dataframe_table(df_display: pd.DataFrame, filas_negrita: List[str] = 
     st.dataframe(
         styled_df,
         use_container_width=True,
-        hide_index=True,
-        height=None
+        hide_index=True
     )
 
 def descargar_excel(df: pd.DataFrame, nombre_hoja: str, nombre_archivo: str, etiqueta: str) -> None:
