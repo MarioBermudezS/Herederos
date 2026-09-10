@@ -108,9 +108,8 @@ campos_destacados = [
     "TOTAL GRUPO",
 ]
 
-# JsCode avanzado para estilos, negritas, totales y sombreados condicionales (KPI y Cuenta Resultados)
-cell_style_jscode = JsCode(
-    """
+# JsCode avanzado definido de forma limpia
+js_string = """
 function(params) {
     var rowNode = params.node;
     var colDef = params.colDef;
@@ -159,7 +158,8 @@ function(params) {
     return style;
 }
 """
-)
+
+cell_style_jscode = JsCode(js_string)
 
 
 def render_tabla_aggrid(df_display):
@@ -746,7 +746,7 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
         mask_total_meses = (
             (df["Año"] == ano)
             & (df["Mes"].isin(meses_sel))
-            & (df["Departamento"] == tienda_unica)
+            & (df["Departamento"].isin(tienda_unica))
         )
         datos_fuente["Total"] = calcular_resultados(df[mask_total_meses])
 
@@ -1120,7 +1120,7 @@ else:
         mask_total_meses = (
             (df["Año"] == ano)
             & (df["Mes"].isin(meses_sel))
-            & (df["Departamento"] == tienda_unica)
+            & (df["Departamento"].isin(tienda_unica))
         )
         datos_fuente["Total"] = calcular_resultados(df[mask_total_meses])
 
