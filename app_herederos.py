@@ -115,13 +115,13 @@ def calcular_ancho_columna(df: pd.DataFrame, col_name: str, min_width: int = 74)
     # pero legible incluso cuando se muestran varias columnas.
     # Ajuste algo más compacto sin cortar cifras, porcentajes ni símbolos.
     ancho = max(
-        int(max_len * 5.35 + 10),
-        int(len(col_name) * 5.35 + 10),
+        int(max_len * 5.1 + 8),
+        int(len(col_name) * 5.1 + 8),
         min_width
     )
 
     # Ajuste compacto para aprovechar mejor el ancho de pantalla.
-    return min(ancho, 180)
+    return min(ancho, 172)
 
 @st.cache_data
 def load_data() -> pd.DataFrame:
@@ -490,8 +490,8 @@ def render_aggrid_table(
                 col,
                 pinned="left",
                 width=ancho,
-                minWidth=95,
-                maxWidth=185,
+                minWidth=90,
+                maxWidth=178,
                 cellStyle={"textAlign": "left", "fontWeight": "600"},
             )
         else:
@@ -581,8 +581,8 @@ def render_aggrid_table(
             gb.configure_column(
                 col,
                 width=ancho,
-                minWidth=62,
-                maxWidth=175,
+                minWidth=58,
+                maxWidth=168,
                 cellStyle=cell_style,
             )
 
@@ -711,8 +711,8 @@ def render_aggrid_rb_horizontal(
                 col,
                 pinned="left",
                 width=ancho,
-                minWidth=80,
-                maxWidth=120,
+                minWidth=76,
+                maxWidth=116,
                 cellStyle={"textAlign": "left", "fontWeight": "600"},
             )
             continue
@@ -804,8 +804,8 @@ def render_aggrid_rb_horizontal(
         gb.configure_column(
             col,
             width=ancho,
-            minWidth=64,
-            maxWidth=148,
+            minWidth=60,
+            maxWidth=142,
             cellStyle=estilo,
         )
 
