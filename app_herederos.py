@@ -813,7 +813,17 @@ def render_aggrid_table(
     # Cada combinación distinta de columnas tiene su propia configuración.
     # Primera vez: autoajuste. Si se vuelve a la misma combinación: recuerda ajustes.
     firma_columnas = "__".join(str(c) for c in df_display.columns)
-    clave_preferencias_efectiva = f"{clave_preferencias}__{firma_columnas}"
+
+    # La preferencia de columnas pertenece a ESTA consulta concreta.
+    # Así, al cambiar año o meses, la nueva información arranca siempre
+    # con autoajuste inicial y no hereda anchos de una consulta anterior.
+    ano_actual = globals().get("ano", "")
+    meses_actuales = globals().get("meses_sel", [])
+    firma_consulta = f"{ano_actual}__{'__'.join(str(m) for m in meses_actuales)}"
+
+    clave_preferencias_efectiva = (
+        f"{clave_preferencias}__{firma_consulta}__{firma_columnas}"
+    )
 
     boton_autoajuste = st.button(
         "↔ Autoajustar todas las columnas",
@@ -1083,7 +1093,17 @@ def render_aggrid_rb_horizontal(
     altura_tabla = altura_cabecera + (len(df_display) * altura_fila)
 
     firma_columnas = "__".join(str(c) for c in df_display.columns)
-    clave_preferencias_efectiva = f"{clave_preferencias}__{firma_columnas}"
+
+    # La preferencia de columnas pertenece a ESTA consulta concreta.
+    # Así, al cambiar año o meses, la nueva información arranca siempre
+    # con autoajuste inicial y no hereda anchos de una consulta anterior.
+    ano_actual = globals().get("ano", "")
+    meses_actuales = globals().get("meses_sel", [])
+    firma_consulta = f"{ano_actual}__{'__'.join(str(m) for m in meses_actuales)}"
+
+    clave_preferencias_efectiva = (
+        f"{clave_preferencias}__{firma_consulta}__{firma_columnas}"
+    )
 
     boton_autoajuste = st.button(
         "↔ Autoajustar todas las columnas",
