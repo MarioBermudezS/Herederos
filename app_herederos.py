@@ -872,13 +872,12 @@ def render_aggrid_table(
                 "border-right": "1px solid #b8bec5",
             },
             ".ag-header-cell-label": {
-                "justify-content": "center",
-                "text-align": "center",
+                "justify-content": "center !important",
+                "text-align": "center !important",
                 "width": "100%",
             },
-            ".ag-header-cell-label": {
-                "justify-content": "center",
-                "text-align": "center",
+            ".ag-header-cell-text": {
+                "text-align": "center !important",
                 "width": "100%",
             },
         },
@@ -1150,6 +1149,15 @@ def render_aggrid_rb_horizontal(
                 "padding-left": "3px",
                 "padding-right": "3px",
                 "border-right": "1px solid #b8bec5",
+            },
+            ".ag-header-cell-label": {
+                "justify-content": "center !important",
+                "text-align": "center !important",
+                "width": "100%",
+            },
+            ".ag-header-cell-text": {
+                "text-align": "center !important",
+                "width": "100%",
             },
         },
     )
