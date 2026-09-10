@@ -231,12 +231,19 @@ def load_tiendas_m2() -> Dict[str, float]:
 def load_margenes_totales_acumulados() -> pd.DataFrame:
     """
     Lee la hoja MargenesTotalesAcumulados del ERP.
-    Se respetan sus porcentajes como dato oficial, sin recalcularlos desde BS.
+
+    Estructura admitida:
+        [vacío] | 2026
+        Departamento | Enero | Febrero | ... | Diciembre
+        Totales      | 0,3901 | 0,3918 | ...
+
+    Se respetan los márgenes oficiales del ERP sin recalcularlos desde BS.
 
     Devuelve:
         Año | Mes | Margen Acumulado Total
     """
     archivo_datos = obtener_archivo_datos()
+
     try:
         raw = pd.read_excel(
             archivo_datos,
@@ -253,51 +260,46 @@ def load_margenes_totales_acumulados() -> pd.DataFrame:
     mapa_meses = {m.upper(): m for m in MESES_ORDEN}
 
     for i in range(len(raw)):
-        primera = raw.iat[i, 0] if raw.shape[1] else None
-
-        try:
-            ano_posible = int(float(primera))
-            if 2000 <= ano_posible <= 2100:
-                ano_actual = ano_posible
-                continue
-        except (TypeError, ValueError):
-            pass
+        # El año puede estar en la primera o segunda columna.
+        for j_ano in range(min(2, raw.shape[1])):
+            valor_ano = raw.iat[i, j_ano]
+            try:
+                ano_posible = int(float(valor_ano))
+                if 2000 <= ano_posible <= 2100:
+                    ano_actual = ano_posible
+                    break
+            except (TypeError, ValueError):
+                pass
 
         if ano_actual is None:
             continue
 
+        primera = raw.iat[i, 0] if raw.shape[1] else None
         primera_txt = "" if pd.isna(primera) else str(primera).strip().upper()
 
-        # Admite tanto una fila "Totales" horizontal como filas Mes/Valor.
-        if primera_txt in {"TOTALES", "TOTAL"}:
-            for j in range(1, raw.shape[1]):
-                # El mes suele estar en la fila inmediatamente anterior.
-                mes = None
-                if i > 0:
-                    cab = raw.iat[i - 1, j]
-                    mes = mapa_meses.get(str(cab).strip().upper())
-                if mes:
-                    valor = pd.to_numeric(raw.iat[i, j], errors="coerce")
-                    if pd.notna(valor):
-                        registros.append(
-                            {
-                                "Año": ano_actual,
-                                "Mes": mes,
-                                "Margen Acumulado Total": float(valor),
-                            }
-                        )
-        else:
-            mes = mapa_meses.get(primera_txt)
-            if mes and raw.shape[1] > 1:
-                valor = pd.to_numeric(raw.iat[i, 1], errors="coerce")
-                if pd.notna(valor):
-                    registros.append(
-                        {
-                            "Año": ano_actual,
-                            "Mes": mes,
-                            "Margen Acumulado Total": float(valor),
-                        }
-                    )
+        if primera_txt not in {"TOTALES", "TOTAL"}:
+            continue
+
+        # La fila anterior contiene los nombres de los meses.
+        if i == 0:
+            continue
+
+        for j in range(1, raw.shape[1]):
+            cabecera = raw.iat[i - 1, j]
+            mes = mapa_meses.get(str(cabecera).strip().upper())
+
+            if not mes:
+                continue
+
+            valor = pd.to_numeric(raw.iat[i, j], errors="coerce")
+            if pd.notna(valor):
+                registros.append(
+                    {
+                        "Año": ano_actual,
+                        "Mes": mes,
+                        "Margen Acumulado Total": float(valor),
+                    }
+                )
 
     return pd.DataFrame(registros)
 
@@ -2471,6 +2473,103 @@ elif modulo_principal == "Análisis de Inventario y Rotación":
             "No se ha podido leer la hoja 'Inventario'. "
             f"Archivo detectado: {obtener_archivo_datos()}"
         )
+        st.stop()
+
+    vista_inventario = st.sidebar.radio(
+        "Vista de inventario",
+        ["Rotación / Cobertura", "Inventarios Mensuales"],
+        key="vista_inventario",
+    )
+
+    # -------------------------------------------------------------
+    # VISTA: INVENTARIOS MENSUALES
+    # -------------------------------------------------------------
+    if vista_inventario == "Inventarios Mensuales":
+        inv_periodo_mensual = df_inventario[
+            (df_inventario["Año"] == ano)
+            & (df_inventario["Mes"].isin(meses_sel))
+        ].copy()
+
+        if inv_periodo_mensual.empty:
+            st.info(
+                "No hay inventario informado para el año y los meses seleccionados."
+            )
+            st.stop()
+
+        tiendas_mensuales = sorted(
+            inv_periodo_mensual["Departamento"]
+            .dropna()
+            .astype(str)
+            .str.strip()
+            .unique()
+        )
+
+        tiendas_sel_mensual = st.sidebar.multiselect(
+            "Selecciona tiendas",
+            tiendas_mensuales,
+            default=tiendas_mensuales,
+            key="tiendas_inventario_mensual",
+        )
+
+        if not tiendas_sel_mensual:
+            st.info("Selecciona al menos una tienda.")
+            st.stop()
+
+        inv_sel = inv_periodo_mensual[
+            inv_periodo_mensual["Departamento"]
+            .astype(str)
+            .str.strip()
+            .isin(tiendas_sel_mensual)
+        ].copy()
+
+        tabla_inv = (
+            inv_sel.pivot_table(
+                index="Departamento",
+                columns="Mes",
+                values="Inventario",
+                aggfunc="sum",
+                fill_value=0,
+            )
+            .reindex(columns=[m for m in MESES_ORDEN if m in meses_sel])
+        )
+
+        # TOTAL por mes, calculado con las tiendas seleccionadas.
+        tabla_inv.loc["TOTAL"] = tabla_inv.sum(axis=0)
+
+        tabla_inv = tabla_inv.reset_index().rename(
+            columns={"Departamento": "Tienda"}
+        )
+
+        tabla_inv_numericos = tabla_inv.copy()
+        tabla_inv_display = tabla_inv.copy()
+
+        for col in tabla_inv_display.columns:
+            if col != "Tienda":
+                tabla_inv_display[col] = tabla_inv_display[col].apply(
+                    formato_moneda
+                )
+
+        st.subheader(f"Inventarios Mensuales — {ano}")
+        st.caption(
+            "Inventario final de cada mes por tienda. "
+            "La fila TOTAL se recalcula con las tiendas seleccionadas."
+        )
+
+        render_aggrid_table(
+            tabla_inv_display,
+            modo="auto",
+            altura_fila=32,
+            altura_cabecera=38,
+            clave_preferencias="inventarios_mensuales",
+        )
+
+        descargar_excel(
+            tabla_inv_numericos,
+            "Inventarios Mensuales",
+            f"Inventarios_Mensuales_{ano}.xlsx",
+            "Descargar inventarios mensuales en Excel",
+        )
+
         st.stop()
 
     inv_periodo = df_inventario[
