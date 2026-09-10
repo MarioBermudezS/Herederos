@@ -84,9 +84,9 @@ meses_orden = [
     "Noviembre",
     "Diciembre",
 ]
-meses_excel = (
-    df["Mes"].dropna().unique().tolist() if "Mes" in df.columns else ["Enero"]
-]
+meses_excel = [
+    m for m in df["Mes"].dropna().unique().tolist()
+] if "Mes" in df.columns else ["Enero"]
 meses_disponibles = [m for m in meses_orden if m in meses_excel]
 if not meses_disponibles:
   meses_disponibles = meses_excel
@@ -150,7 +150,6 @@ function(params) {
                 style['fontWeight'] = 'bold';
             }
         } else {
-            // Para columnas normales (incluyendo KPIs negativos)
             if (val.includes('-')) {
                 style['color'] = '#dc2626';
                 style['backgroundColor'] = '#fee2e2';
