@@ -94,7 +94,7 @@ meses_orden = [
 ]
 meses_excel = (
     df["Mes"].dropna().unique().tolist() if "Mes" in df.columns else ["Enero"]
-]
+)
 meses_disponibles = [m for m in meses_orden if m in meses_excel]
 if not meses_disponibles:
   meses_disponibles = meses_excel
@@ -116,8 +116,9 @@ campos_destacados = [
     "TOTAL GRUPO",
 ]
 
-# JsCode avanzado para estilos, negritas, totales y sombreados condicionales
-cell_style_jscode = JsCode("""
+# JsCode corregido sin errores de sintaxis
+cell_style_jscode = JsCode(
+    """
 function(params) {
     var rowNode = params.node;
     var colDef = params.colDef;
@@ -164,7 +165,8 @@ function(params) {
 
     return style;
 }
-""")
+"""
+)
 
 
 def render_tabla_aggrid(df_display):
@@ -195,7 +197,6 @@ def render_tabla_aggrid(df_display):
   )
   gridOptions = gb.build()
 
-  # Altura exacta calculada por filas para mostrar todo el informe de un vistazo sin scroll interno
   row_count = len(df_display)
   calculated_height = (row_count + 1) * 36 + 30
 
