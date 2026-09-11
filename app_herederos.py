@@ -199,6 +199,8 @@ def mostrar_control_base_datos():
     except Exception as e:
         st.sidebar.warning(f"No se pudo comprobar la base de datos: {e}")
 
+mostrar_control_base_datos()
+
 
 def firma_archivo_datos() -> tuple:
     """
