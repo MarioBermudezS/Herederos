@@ -7,38 +7,7 @@ from pathlib import Path
 import re
 
 
-def mostrar_control_base_datos():
-    """
-    Muestra en la barra lateral qué Excel está usando la app
-    y permite limpiar la caché manualmente sin hacer reboot.
-    """
-    try:
-        archivo = Path(obtener_archivo_datos())
-        stat = archivo.stat()
 
-        from datetime import datetime
-        fecha = datetime.fromtimestamp(stat.st_mtime).strftime("%d/%m/%Y %H:%M:%S")
-        tamano_mb = stat.st_size / (1024 * 1024)
-
-        st.sidebar.markdown("---")
-        st.sidebar.markdown("### Base de datos")
-        st.sidebar.caption(f"Archivo: {archivo.name}")
-        st.sidebar.caption(f"Actualizado: {fecha}")
-        st.sidebar.caption(f"Tamaño: {tamano_mb:.2f} MB")
-
-        if st.sidebar.button("🔄 Recargar datos", use_container_width=True):
-            st.cache_data.clear()
-            st.rerun()
-
-    except Exception as e:
-        st.sidebar.warning(f"No se pudo comprobar la base de datos: {e}")
-
-
-
-st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
-
-
-mostrar_control_base_datos()
 # =====================================================================
 # CONFIGURACIÓN Y ESTILOS
 # =====================================================================
@@ -192,6 +161,39 @@ def obtener_archivo_datos() -> str:
 
 
 
+
+
+def mostrar_control_base_datos():
+    """
+    Muestra en la barra lateral qué Excel está usando la app
+    y permite limpiar la caché manualmente sin hacer reboot.
+    """
+    try:
+        archivo = Path(obtener_archivo_datos())
+        stat = archivo.stat()
+
+        from datetime import datetime
+        fecha = datetime.fromtimestamp(stat.st_mtime).strftime("%d/%m/%Y %H:%M:%S")
+        tamano_mb = stat.st_size / (1024 * 1024)
+
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("### Base de datos")
+        st.sidebar.caption(f"Archivo: {archivo.name}")
+        st.sidebar.caption(f"Actualizado: {fecha}")
+        st.sidebar.caption(f"Tamaño: {tamano_mb:.2f} MB")
+
+        if st.sidebar.button("🔄 Recargar datos", use_container_width=True):
+            st.cache_data.clear()
+            st.rerun()
+
+    except Exception as e:
+        st.sidebar.warning(f"No se pudo comprobar la base de datos: {e}")
+
+
+
+st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
+
+mostrar_control_base_datos()
 
 def firma_archivo_datos() -> tuple:
     """
