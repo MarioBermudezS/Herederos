@@ -31,7 +31,7 @@ CSS_ESTILOS = """
     h3 {font-size: 0.90rem !important; margin: 0.04rem 0 !important; line-height: 1.10 !important;}
 
     /* Interfaz más compacta para aprovechar toda la pantalla */
-    div[data-testid="stVerticalBlock"] {gap: 0.12rem !important;}
+    div[data-testid="stVerticalBlock"] {gap: 0.08rem !important;}
     div[data-testid="stSidebar"] .block-container {
         padding-top: 0.25rem !important;
         padding-bottom: 0.20rem !important;
@@ -130,13 +130,13 @@ def calcular_ancho_columna(df: pd.DataFrame, col_name: str, min_width: int = 74)
     # pero legible incluso cuando se muestran varias columnas.
     # Ajuste algo más compacto sin cortar cifras, porcentajes ni símbolos.
     ancho = max(
-        int(max_len * 4.9 + 7),
-        int(len(col_name) * 4.9 + 7),
+        int(max_len * 4.55 + 6),
+        int(len(col_name) * 4.55 + 6),
         min_width
     )
 
     # Ajuste compacto para aprovechar mejor el ancho de pantalla.
-    return min(ancho, 166)
+    return min(ancho, 150)
 
 def obtener_archivo_datos() -> str:
     """
@@ -1112,7 +1112,7 @@ def estado_columnas_js(clave: str, autoajustar_todas: bool = False) -> JsCode:
 
             // Primera vez para esta combinación de columnas: autoajuste inicial.
             // Con muchas columnas se prioriza que entren en el ancho disponible.
-            if (!hayEstadoGuardado && !autoajustarTodas) {{
+            if (!autoajustarTodas) {{
                 try {{
                     let numeroColumnas = 0;
                     if (params.api && params.api.getColumnState) {{
@@ -1156,9 +1156,9 @@ def estado_columnas_js(clave: str, autoajustar_todas: bool = False) -> JsCode:
                                     if (col.width && col.width > 70) {{
                                         if (index === 0) {{
                                             // Primera columna: conservar más ancho para conceptos.
-                                            col.width = Math.max(145, Math.round(col.width * 0.96));
+                                            col.width = Math.max(140, Math.round(col.width * 0.95));
                                         }} else {{
-                                            col.width = Math.max(55, Math.round(col.width * 0.90));
+                                            col.width = Math.max(52, Math.round(col.width * 0.84));
                                         }}
                                     }}
                                     return col;
@@ -1241,6 +1241,10 @@ def render_aggrid_table(
     if df_display.empty:
         st.info("No hay datos para mostrar con los filtros seleccionados.")
         return
+
+    # Diseño compacto: más filas visibles sin perder legibilidad.
+    altura_fila = min(int(altura_fila), 27)
+    altura_cabecera = min(int(altura_cabecera), 30)
 
     filas_negrita = {
         "MARGEN BRUTO",
@@ -1472,18 +1476,18 @@ def render_aggrid_table(
 
     for i, col in enumerate(df_display.columns):
         if i == 0:
-            ancho = calcular_ancho_columna(df_display, col, 120)
-            # La primera columna contiene conceptos y necesita más espacio.
-            ancho_primera = max(ancho, 150)
+            ancho = calcular_ancho_columna(df_display, col, 118)
+            # Concepto se mantiene prácticamente igual, solo un poco más compacto.
+            ancho_primera = max(ancho, 146)
             gb.configure_column(
                 col,
                 width=ancho_primera,
-                minWidth=145,
-                maxWidth=240,
+                minWidth=140,
+                maxWidth=225,
                 cellStyle={"textAlign": "left", "fontWeight": "600"},
             )
         else:
-            ancho = calcular_ancho_columna(df_display, col, 74)
+            ancho = calcular_ancho_columna(df_display, col, 66)
 
             col_norm = str(col).strip().upper()
             es_columna_total = es_columna_resumen(col)
@@ -1599,8 +1603,8 @@ def render_aggrid_table(
             gb.configure_column(
                 col,
                 width=ancho,
-                minWidth=55,
-                maxWidth=162,
+                minWidth=52,
+                maxWidth=148,
                 cellStyle=cell_style,
             )
 
@@ -1663,17 +1667,17 @@ def render_aggrid_table(
         height=altura_tabla,
         custom_css={
             ".ag-cell": {
-                "font-size": "13px",
-                "line-height": "27px",
-                "padding-left": "3px",
-                "padding-right": "3px",
+                "font-size": "12.5px",
+                "line-height": "24px",
+                "padding-left": "2px",
+                "padding-right": "2px",
                 "border-right": "1px solid #c9ced3",
             },
             ".ag-header-cell": {
-                "font-size": "13px",
+                "font-size": "12.5px",
                 "font-weight": "600",
-                "padding-left": "3px",
-                "padding-right": "3px",
+                "padding-left": "2px",
+                "padding-right": "2px",
                 "border-right": "1px solid #b8bec5",
             },
             ".ag-header-cell-label": {
@@ -1706,6 +1710,10 @@ def render_aggrid_rb_horizontal(
     if df_display.empty:
         st.info("No hay datos para mostrar con los filtros seleccionados.")
         return
+
+    # Diseño compacto para evitar desplazamientos verticales innecesarios.
+    altura_fila = min(int(altura_fila), 27)
+    altura_cabecera = min(int(altura_cabecera), 30)
 
     verdes_por_columna = {t: set() for t in tiendas if t in df_display.columns}
     rojos_por_columna = {t: set() for t in tiendas if t in df_display.columns}
