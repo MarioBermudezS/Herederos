@@ -2010,6 +2010,7 @@ modulo_principal = st.sidebar.radio(
         "Informe KPI (% sobre Ventas)",
         "Análisis de Inventario y Rotación",
     ],
+    key="filtro_modulo_principal",
 )
 
 # Años disponibles
@@ -2020,7 +2021,11 @@ if "Año" in df.columns:
 if not anos_disponibles:
     anos_disponibles = [2026]
 
-ano = st.sidebar.selectbox("Año principal", anos_disponibles)
+ano = st.sidebar.selectbox(
+    "Año principal",
+    anos_disponibles,
+    key="filtro_ano_principal",
+)
 
 # Meses disponibles
 meses_excel = df["Mes"].dropna().unique().tolist() if "Mes" in df.columns else ["Enero"]
@@ -2029,7 +2034,10 @@ if not meses_disponibles:
     meses_disponibles = meses_excel
 
 meses_sel = st.sidebar.multiselect(
-    "Selecciona mes(es)", meses_disponibles, default=meses_disponibles[:1]
+    "Selecciona mes(es)",
+    meses_disponibles,
+    default=meses_disponibles[:1],
+    key="filtro_meses_principales",
 )
 
 # Departamentos disponibles.
@@ -2090,6 +2098,7 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
             "Vista Acumulada por Tienda",
             "Comparativa Interanual (Año vs Año Anterior)",
         ],
+        key="rb_tipo_vista",
     )
 
     orientacion_rb = st.sidebar.radio(
@@ -2098,6 +2107,7 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
             "Meses en filas / Tiendas en columnas",
             "Tiendas en filas / Meses en columnas",
         ],
+        key="rb_orientacion",
     )
     
     # Para el análisis R.B. solo se muestran tiendas que tengan algún
@@ -2119,6 +2129,7 @@ if modulo_principal == "Análisis Específico de R.B. (Margen Bruto)":
         "Selecciona tiendas",
         tiendas_rb_disponibles,
         default=tiendas_rb_disponibles,
+        key="rb_tiendas",
     )
     
     if not tiendas_rb or not meses_sel:
@@ -2376,6 +2387,7 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
     base_kpi = st.sidebar.radio(
         "Base del KPI",
         ["% sobre Ventas", "€/m² de tienda", "Comparar ambos"],
+        key="kpi_base",
     )
     m2_por_tienda = load_tiendas_m2(firma_archivo_datos())
 
@@ -2386,6 +2398,7 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
             "Comparativa Multi-Tienda (Totales)",
             "Comparativa Interanual (Año vs Año Anterior)",
         ],
+        key="kpi_modo_analisis",
     )
     
     # Selección de tiendas/meses.
@@ -2454,16 +2467,20 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
                 if base_kpi != "% sobre Ventas"
                 else default_tiendas_kpi[:2]
             ),
+            key="kpi_tiendas_comparar",
         )
     else:
         tipo_consulta = st.sidebar.radio(
-            "Tipo de consulta", ["Una tienda", "Conjunto de tiendas"]
+            "Tipo de consulta",
+            ["Una tienda", "Conjunto de tiendas"],
+            key="kpi_tipo_consulta",
         )
 
         if tipo_consulta == "Una tienda":
             tienda_sel = st.sidebar.selectbox(
                 "Selecciona tienda",
                 opciones_tiendas_kpi,
+                key="kpi_tienda_individual",
             )
             tiendas = [tienda_sel] if tienda_sel else []
         else:
@@ -2471,6 +2488,7 @@ elif modulo_principal == "Informe KPI (% sobre Ventas)":
                 "Selecciona tiendas",
                 opciones_tiendas_kpi,
                 default=default_tiendas_kpi,
+                key="kpi_tiendas_conjunto",
             )
 
     if not tiendas or not meses_sel:
@@ -2790,6 +2808,7 @@ elif modulo_principal == "Cuenta de Resultados Completa":
             "Comparativa Multi-Tienda (Totales)",
             "Comparativa Interanual (Año vs Año Anterior)",
         ],
+        key="cdr_modo_analisis",
     )
     
     # Selección de tiendas
@@ -2801,22 +2820,30 @@ elif modulo_principal == "Cuenta de Resultados Completa":
             default=departamentos_sin_general[:2]
             if len(departamentos_sin_general) >= 2
             else departamentos_sin_general,
+            key="cdr_tiendas_comparar",
         )
     else:
         tipo_consulta = st.sidebar.radio(
-            "Tipo de consulta", ["Total empresa", "Una tienda", "Conjunto de tiendas"]
+            "Tipo de consulta",
+            ["Total empresa", "Una tienda", "Conjunto de tiendas"],
+            key="cdr_tipo_consulta",
         )
         if tipo_consulta == "Total empresa":
             total_empresa_consulta = True
             tiendas = departamentos_disponibles.copy()
         elif tipo_consulta == "Una tienda":
-            tienda_sel = st.sidebar.selectbox("Selecciona tienda", departamentos_disponibles)
+            tienda_sel = st.sidebar.selectbox(
+                "Selecciona tienda",
+                departamentos_disponibles,
+                key="cdr_tienda_individual",
+            )
             tiendas = [tienda_sel] if tienda_sel else []
         else:
             tiendas = st.sidebar.multiselect(
                 "Selecciona tiendas",
                 departamentos_sin_general,
                 default=departamentos_sin_general,
+                key="cdr_tiendas_conjunto",
             )
     
     if not tiendas or not meses_sel:
@@ -3816,6 +3843,7 @@ Cuanto mayor sea el número del ranking, menor es el margen generado por euro de
         "Selecciona tiendas de inventario",
         tiendas_inv,
         default=tiendas_inv,
+        key="inventario_tiendas_rotacion",
     )
 
     if not tiendas_seleccionadas_inv or not meses_sel:
