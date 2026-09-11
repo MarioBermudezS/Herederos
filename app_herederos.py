@@ -164,10 +164,11 @@ def obtener_archivo_datos() -> str:
 
 
 
+
 def mostrar_control_base_datos():
     """
-    Muestra en la barra lateral qué Excel está usando la app
-    y permite recargar datos sin perder las selecciones actuales.
+    Muestra información del Excel y permite recargar los datos
+    conservando las selecciones actuales de la sesión.
     """
     try:
         archivo = Path(obtener_archivo_datos())
@@ -183,8 +184,13 @@ def mostrar_control_base_datos():
         st.sidebar.caption(f"Actualizado: {fecha}")
         st.sidebar.caption(f"Tamaño: {tamano_mb:.2f} MB")
 
-        if st.sidebar.button("🔄 Recargar datos", use_container_width=True):
+        if st.sidebar.button(
+            "🔄 Recargar datos",
+            key="btn_recargar_datos",
+            use_container_width=True
+        ):
             estado_actual = dict(st.session_state)
+
             st.cache_data.clear()
 
             for clave, valor in estado_actual.items():
@@ -194,6 +200,9 @@ def mostrar_control_base_datos():
 
     except Exception as e:
         st.sidebar.warning(f"No se pudo comprobar la base de datos: {e}")
+
+
+mostrar_control_base_datos()
 
 
 def firma_archivo_datos() -> tuple:
