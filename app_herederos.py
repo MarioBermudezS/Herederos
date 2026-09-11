@@ -163,10 +163,11 @@ def obtener_archivo_datos() -> str:
 
 
 
+
 def mostrar_control_base_datos():
     """
     Muestra en la barra lateral qué Excel está usando la app
-    y permite limpiar la caché manualmente sin hacer reboot.
+    y permite recargar datos sin perder las selecciones actuales.
     """
     try:
         archivo = Path(obtener_archivo_datos())
@@ -183,17 +184,17 @@ def mostrar_control_base_datos():
         st.sidebar.caption(f"Tamaño: {tamano_mb:.2f} MB")
 
         if st.sidebar.button("🔄 Recargar datos", use_container_width=True):
+            estado_actual = dict(st.session_state)
             st.cache_data.clear()
+
+            for clave, valor in estado_actual.items():
+                st.session_state[clave] = valor
+
             st.rerun()
 
     except Exception as e:
         st.sidebar.warning(f"No se pudo comprobar la base de datos: {e}")
 
-
-
-st.set_page_config(page_title="Control de Resultados - Herederos", layout="wide")
-
-mostrar_control_base_datos()
 
 def firma_archivo_datos() -> tuple:
     """
