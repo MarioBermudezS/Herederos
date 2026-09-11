@@ -165,6 +165,7 @@ def obtener_archivo_datos() -> str:
 
 
 
+
 def mostrar_control_base_datos():
     """
     Muestra información del Excel y permite recargar los datos
@@ -189,20 +190,14 @@ def mostrar_control_base_datos():
             key="btn_recargar_datos",
             use_container_width=True
         ):
-            estado_actual = dict(st.session_state)
-
+            # Limpiamos únicamente la caché de datos.
+            # st.session_state se conserva automáticamente en el rerun,
+            # por lo que no debemos reescribir las claves de los widgets.
             st.cache_data.clear()
-
-            for clave, valor in estado_actual.items():
-                st.session_state[clave] = valor
-
             st.rerun()
 
     except Exception as e:
         st.sidebar.warning(f"No se pudo comprobar la base de datos: {e}")
-
-
-mostrar_control_base_datos()
 
 
 def firma_archivo_datos() -> tuple:
