@@ -185,16 +185,16 @@ def mostrar_control_base_datos():
         st.sidebar.caption(f"Actualizado: {fecha}")
         st.sidebar.caption(f"Tamaño: {tamano_mb:.2f} MB")
 
-        if st.sidebar.button(
+        def _recargar_datos():
+            """Limpia la caché; el propio botón provoca un único rerun de Streamlit."""
+            st.cache_data.clear()
+
+        st.sidebar.button(
             "🔄 Recargar datos",
             key="btn_recargar_datos",
-            use_container_width=True
-        ):
-            # Limpiamos únicamente la caché de datos.
-            # st.session_state se conserva automáticamente en el rerun,
-            # por lo que no debemos reescribir las claves de los widgets.
-            st.cache_data.clear()
-            st.rerun()
+            use_container_width=True,
+            on_click=_recargar_datos,
+        )
 
     except Exception as e:
         st.sidebar.warning(f"No se pudo comprobar la base de datos: {e}")
